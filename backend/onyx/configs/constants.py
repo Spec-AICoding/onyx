@@ -98,6 +98,7 @@ POSTGRES_CELERY_WORKER_USER_FILE_PROCESSING_APP_NAME = (
     "celery_worker_user_file_processing"
 )
 POSTGRES_CELERY_WORKER_SCHEDULED_TASKS_APP_NAME = "celery_worker_scheduled_tasks"
+POSTGRES_CELERY_WORKER_GRAPH_PROCESSING_APP_NAME = "celery_worker_graph_processing"
 POSTGRES_PERMISSIONS_APP_NAME = "permissions"
 POSTGRES_UNKNOWN_APP_NAME = "unknown"
 
@@ -170,6 +171,16 @@ CELERY_PERMISSIONS_SYNC_LOCK_TIMEOUT = 3600  # 1 hour (in seconds)
 CELERY_EXTERNAL_GROUP_SYNC_LOCK_TIMEOUT = 300  # 5 min
 
 CELERY_USER_FILE_PROCESSING_LOCK_TIMEOUT = 30 * 60  # 30 minutes (in seconds)
+
+# Graph processing — how long the per-document processing lock is held.
+CELERY_GRAPH_PROCESSING_LOCK_TIMEOUT = 30 * 60  # 30 minutes (in seconds)
+
+# How long a queued graph-processing task is valid before workers discard it.
+CELERY_GRAPH_PROCESSING_TASK_EXPIRES = 60  # 1 minute (in seconds)
+
+# Maximum number of tasks allowed in the graph-processing queue before the
+# beat generator stops adding more.
+GRAPH_PROCESSING_MAX_QUEUE_DEPTH = 500
 
 # How long a queued user-file task is valid before workers discard it.
 # Should be longer than the beat interval (20 s) but short enough to prevent
@@ -468,6 +479,9 @@ class OnyxCeleryQueues:
 
     OPENSEARCH_MIGRATION = "opensearch_migration"
 
+    # Graph processing queue
+    GRAPH_PROCESSING = "graph_processing"
+
 
 class OnyxRedisLocks:
     PRIMARY_WORKER = "da_lock:primary_worker"
@@ -532,6 +546,11 @@ class OnyxRedisLocks:
     # Sandbox cleanup
     CLEANUP_IDLE_SANDBOXES_BEAT_LOCK = "da_lock:cleanup_idle_sandboxes_beat"
     SESSION_CREATE_LOCK_PREFIX = "session_create"
+
+    # Graph processing
+    GRAPH_PROCESSING_BEAT_LOCK = "da_lock:check_graph_processing_beat"
+    GRAPH_PROCESSING_LOCK_PREFIX = "da_lock:graph_processing"
+    GRAPH_PROCESSING_QUEUED_PREFIX = "da_lock:graph_processing_queued"
 
 
 class OnyxRedisSignals:
@@ -679,6 +698,10 @@ class OnyxCeleryTask:
     MIGRATE_CHUNKS_FROM_VESPA_TO_OPENSEARCH_TASK = (
         "migrate_chunks_from_vespa_to_opensearch_task"
     )
+
+    # Graph processing
+    CHECK_FOR_GRAPH_PROCESSING = "check_for_graph_processing"
+    PROCESS_DOCUMENT_GRAPH = "process_document_graph"
 
 
 # this needs to correspond to the matching entry in supervisord

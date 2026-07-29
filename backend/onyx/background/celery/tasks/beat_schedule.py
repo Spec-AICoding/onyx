@@ -294,6 +294,21 @@ if (
         }
     )
 
+# Graph processing — scan for documents with kg_stage=NOT_STARTED and enqueue
+# per-document tasks to call the external graph API.
+beat_task_templates.append(
+    {
+        "name": "check-for-graph-processing",
+        "task": OnyxCeleryTask.CHECK_FOR_GRAPH_PROCESSING,
+        "schedule": timedelta(seconds=20),
+        "options": {
+            "priority": OnyxCeleryPriority.MEDIUM,
+            "expires": BEAT_EXPIRES_DEFAULT,
+            "queue": OnyxCeleryQueues.GRAPH_PROCESSING,
+        },
+    }
+)
+
 
 # Beat task names that require a vector DB. Filtered out when DISABLE_VECTOR_DB.
 _VECTOR_DB_BEAT_TASK_NAMES: set[str] = {

@@ -1,8 +1,16 @@
 import os
 import subprocess
 import threading
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ENV_FILE = Path(BACKEND_DIR) / ".env"
+
+# Load .env so Celery workers pick up REDIS_HOST etc.
+if ENV_FILE.exists():
+    load_dotenv(ENV_FILE, override=True)
 
 
 def monitor_process(process_name: str, process: subprocess.Popen) -> None:
@@ -137,15 +145,32 @@ def run_jobs() -> None:
         "--loglevel=INFO",
     ]
 
+    cmd_worker_graph_processing = [
+        "celery",
+        "-A",
+        "onyx.background.celery.versioned_apps.graph_processing",
+        "worker",
+        "--pool=threads",
+        "--concurrency=2",
+        "--prefetch-multiplier=1",
+        "--loglevel=INFO",
+        "--hostname=graph_processing@%n",
+        "-Q",
+        "graph_processing",
+    ]
+
     all_workers = [
+        # Essential: BEAT (scheduler) + PRIMARY (default queue) must run together
         ("PRIMARY", cmd_worker_primary),
         ("LIGHT", cmd_worker_light),
-        ("DOCPROCESSING", cmd_worker_docprocessing),
-        ("DOCFETCHING", cmd_worker_docfetching),
-        ("HEAVY", cmd_worker_heavy),
-        ("MONITORING", cmd_worker_monitoring),
-        ("USER_FILE_PROCESSING", cmd_worker_user_file_processing),
-        ("SCHEDULED_TASKS", cmd_worker_scheduled_tasks),
+        # Optional workers — comment out to reduce resource usage:
+        # ("DOCPROCESSING", cmd_worker_docprocessing),
+        # ("DOCFETCHING", cmd_worker_docfetching),
+        # ("HEAVY", cmd_worker_heavy),
+        # ("MONITORING", cmd_worker_monitoring),
+        # ("USER_FILE_PROCESSING", cmd_worker_user_file_processing),
+        # ("SCHEDULED_TASKS", cmd_worker_scheduled_tasks),
+        ("GRAPH_PROCESSING", cmd_worker_graph_processing),
         ("BEAT", cmd_beat),
     ]
 
