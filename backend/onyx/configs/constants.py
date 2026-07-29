@@ -115,6 +115,7 @@ SLACK_SERVICE_ACCOUNT_EMAIL = (
 ).lower()
 
 # Key-Value store keys
+KV_PASSWORD_AUTH_ENABLED_KEY = "password_auth_enabled_override"
 KV_REINDEX_KEY = "needs_reindexing"
 KV_UNSTRUCTURED_API_KEY = "unstructured_api_key"
 KV_USER_STORE_KEY = "INVITED_USERS"
@@ -395,6 +396,7 @@ class FileStoreType(str, Enum):
     S3 = "s3"
     POSTGRES = "postgres"
     GCS = "gcs"
+    AZURE = "azure"
 
 
 class FileOrigin(str, Enum):
@@ -467,6 +469,9 @@ class OnyxCeleryQueues:
     # Reindex port queue (heavy PRESENT -> FUTURE re-embed; kept off the
     # docprocessing queue so a migration doesn't starve live indexing)
     PORT = "port"
+    # User-file reindex port; runs on the user-file worker with its own budget, so it
+    # never competes with the connector port or docprocessing.
+    USER_FILE_PORT = "user_file_port"
 
     # Monitoring queue
     MONITORING = "monitoring"
@@ -629,6 +634,7 @@ class OnyxCeleryTask:
 
     # Reindex port (PRESENT -> FUTURE chunk copy)
     RUN_PORT_ATTEMPT = "run_port_attempt"
+    RUN_USER_FILE_PORT_ATTEMPT = "run_user_file_port_attempt"
     CHECK_FOR_PORT = "check_for_port"
 
     # Connector checkpoint cleanup
@@ -643,6 +649,7 @@ class OnyxCeleryTask:
     MONITOR_CELERY_QUEUES = "monitor_celery_queues"
     MONITOR_PROCESS_MEMORY = "monitor_process_memory"
     CELERY_BEAT_HEARTBEAT = "celery_beat_heartbeat"
+    EMIT_VERSION_TELEMETRY = "emit_version_telemetry"
 
     CONNECTOR_PERMISSION_SYNC_GENERATOR_TASK = (
         "connector_permission_sync_generator_task"

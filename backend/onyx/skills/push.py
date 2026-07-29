@@ -15,12 +15,13 @@ from onyx.db.external_app import (
 )
 from onyx.db.models import Skill, User
 from onyx.db.skill import (
-    SkillAccessPolicy,
     SkillValidityUpdate,
     affected_user_ids_for_skill,
-    list_skills,
+    list_runtime_skills_for_user,
     persist_skill_validity,
 )
+from onyx.error_handling.error_codes import OnyxErrorCode
+from onyx.error_handling.exceptions import OnyxError
 from onyx.file_store.file_store import get_default_file_store
 from onyx.server.features.build.db.sandbox import (
     get_sandbox_user_map,
@@ -57,7 +58,9 @@ def compute_skill_runtime_hash(
     files: FileSet,
     connectable_apps_section: str,
 ) -> str:
-    """Digest skill files and the app guidance rendered into ``AGENTS.md``."""
+    """Digest the skill files and the app guidance rendered into ``AGENTS.md``.
+    A change makes a live session stale so it hot-reloads. The craft MCP set is
+    tracked separately via ``mcp_config_hash`` (see ``session_runtime_stale``)."""
     digest = hashlib.sha256()
     connectable_apps_bytes = connectable_apps_section.encode()
     digest.update(len(connectable_apps_bytes).to_bytes(8))
@@ -91,7 +94,7 @@ def _add_static_builtin(
         if not path.is_file() or _is_excluded(path, source_dir):
             continue
         rel = path.relative_to(source_dir)
-        files[f"{skill.slug}/{rel.as_posix()}"] = path.read_bytes()
+        files[f"{skill.name}/{rel.as_posix()}"] = path.read_bytes()
 
 
 def _render_template(
@@ -101,14 +104,14 @@ def _render_template(
     db_session: Session,
     user: User,
 ) -> None:
-    """Overwrite ``{slug}/SKILL.md`` with a per-user rendering. company-search
+    """Overwrite ``{name}/SKILL.md`` with a per-user rendering. company-search
     and external-app built-ins have renderers; any other templated built-in logs
     a warning and ships the static siblings as-is."""
     if definition.built_in_skill_id == COMPANY_SEARCH.built_in_skill_id:
         rendered = render_company_search_skill(
             db_session, user, definition.source_dir.parent
         )
-        files[f"{skill.slug}/SKILL.md"] = rendered.encode("utf-8")
+        files[f"{skill.name}/SKILL.md"] = rendered.encode("utf-8")
         return
 
     app_type = EXTERNAL_APP_SKILL_ID_TO_APP_TYPE.get(definition.built_in_skill_id)
@@ -120,7 +123,7 @@ def _render_template(
             external_app,
             definition.source_dir,
         )
-        files[f"{skill.slug}/SKILL.md"] = rendered.encode("utf-8")
+        files[f"{skill.name}/SKILL.md"] = rendered.encode("utf-8")
         return
 
     logger.warning(
@@ -135,12 +138,12 @@ def _add_bundle_bytes(files: FileSet, skill: Skill, bundle_bytes: bytes) -> None
             for info in zf.infolist():
                 if info.is_dir():
                     continue
-                bundle_files[f"{skill.slug}/{info.filename}"] = zf.read(info)
+                bundle_files[f"{skill.name}/{info.filename}"] = zf.read(info)
         files.update(bundle_files)
     except Exception:
         logger.warning(
             "Failed to unpack bundle for skill %s (%s), skipping",
-            skill.slug,
+            skill.name,
             skill.bundle_file_id,
             exc_info=True,
         )
@@ -157,6 +160,16 @@ def _assemble_fileset(
     validation before their FileStore bundle is unpacked. Invalid,
     indeterminate, and unknown built-in rows are skipped.
     """
+    skills = list(skills)
+    seen_names: set[str] = set()
+    for skill in skills:
+        if skill.name in seen_names:
+            raise OnyxError(
+                OnyxErrorCode.INTERNAL_ERROR,
+                f"Multiple enabled skills are named '{skill.name}'.",
+            )
+        seen_names.add(skill.name)
+
     files: FileSet = {}
     validity_updates: list[SkillValidityUpdate] = []
     file_store = get_default_file_store()
@@ -206,7 +219,7 @@ def _assemble_fileset(
         if definition is None:
             logger.warning(
                 "Skill row %s references unknown built-in %s; skipping",
-                skill.slug,
+                skill.name,
                 skill.built_in_skill_id,
             )
             continue
@@ -223,11 +236,7 @@ def _assemble_fileset(
 
 def build_skills_fileset_for_user(user: User, db_session: Session) -> FileSet:
     """Return a flat ``{path: bytes}`` map of every skill the user can see."""
-    skills = list_skills(
-        policy=SkillAccessPolicy.USE,
-        user=user,
-        db_session=db_session,
-    )
+    skills = list_runtime_skills_for_user(user=user, db_session=db_session)
     return _assemble_fileset(skills, user, db_session)
 
 
@@ -237,11 +246,7 @@ def build_user_skills_payload(user: User, db_session: Session) -> tuple[str, Fil
     The connectable-apps section lists org apps the user has not connected yet,
     so the agent can offer to set one up through the connect tool.
     """
-    skills = list_skills(
-        policy=SkillAccessPolicy.USE,
-        user=user,
-        db_session=db_session,
-    )
+    skills = list_runtime_skills_for_user(user=user, db_session=db_session)
     files = _assemble_fileset(skills, user, db_session)
     connectable_apps_section = build_connectable_apps_list(
         get_connectable_apps_for_user(db_session, user)
