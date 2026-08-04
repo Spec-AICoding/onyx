@@ -127,6 +127,14 @@ WEB_DOMAIN = os.environ.get("WEB_DOMAIN") or "http://localhost:3000"
 POSTHOG_API_KEY = os.environ.get("POSTHOG_API_KEY")
 POSTHOG_HOST = os.environ.get("POSTHOG_HOST") or "https://us.i.posthog.com"
 
+#####
+# External Graph Knowledge Search Configs
+#####
+GRAPH_API_URL = os.environ.get("GRAPH_API_URL") or ""
+GRAPH_API_AUTH_TOKEN = os.environ.get("GRAPH_API_AUTH_TOKEN") or ""
+GRAPH_API_QUERY_MODE = os.environ.get("GRAPH_API_QUERY_MODE") or "local"
+GRAPH_API_TOP_K = int(os.environ.get("GRAPH_API_TOP_K") or "5")
+
 
 #####
 # Auth Configs

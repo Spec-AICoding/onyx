@@ -309,6 +309,21 @@ beat_task_templates.append(
     }
 )
 
+# User file graph processing — scan user-uploaded files with kg_stage=NOT_STARTED
+# and enqueue per-file tasks to call the external graph API.
+beat_task_templates.append(
+    {
+        "name": "check-for-user-file-graph-processing",
+        "task": OnyxCeleryTask.CHECK_FOR_USER_FILE_GRAPH_PROCESSING,
+        "schedule": timedelta(seconds=20),
+        "options": {
+            "priority": OnyxCeleryPriority.MEDIUM,
+            "expires": BEAT_EXPIRES_DEFAULT,
+            "queue": OnyxCeleryQueues.GRAPH_PROCESSING,
+        },
+    }
+)
+
 
 # Beat task names that require a vector DB. Filtered out when DISABLE_VECTOR_DB.
 _VECTOR_DB_BEAT_TASK_NAMES: set[str] = {

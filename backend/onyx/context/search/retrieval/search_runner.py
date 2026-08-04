@@ -11,6 +11,8 @@ from onyx.context.search.models import (
     InferenceChunk,
     InferenceSection,
 )
+from onyx.configs.app_configs import GRAPH_API_URL
+from onyx.context.search.graph_search.graph_knowledge_search import search_graph
 from onyx.context.search.utils import get_query_embedding, inference_section_from_chunks
 from onyx.document_index.interfaces_new import DocumentIndex, DocumentSectionRequest
 from onyx.federated_connectors.federated_retrieval import (
@@ -151,6 +153,10 @@ def search_chunks(
                     (query_request, document_index, db_session, embedding_model),
                 )
             )
+
+    # External graph knowledge search — optional, configured via env
+    if GRAPH_API_URL:
+        run_queries.append((search_graph, (query_request,)))
 
     parallel_search_results = run_functions_tuples_in_parallel(run_queries)
     top_chunks = combine_retrieval_results(parallel_search_results)

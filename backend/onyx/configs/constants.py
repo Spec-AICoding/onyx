@@ -298,6 +298,8 @@ class DocumentSource(str, Enum):
     # Raw files for Craft sandbox access (xlsx, pptx, docx, etc.)
     # Uses RAW_BINARY processing mode - no text extraction
     CRAFT_FILE = "craft_file"
+    # Knowledge graph search results
+    GRAPH = "graph"
 
 
 class FederatedConnectorSource(str, Enum):
@@ -557,6 +559,17 @@ class OnyxRedisLocks:
     GRAPH_PROCESSING_LOCK_PREFIX = "da_lock:graph_processing"
     GRAPH_PROCESSING_QUEUED_PREFIX = "da_lock:graph_processing_queued"
 
+    # User file graph processing
+    USER_FILE_GRAPH_PROCESSING_BEAT_LOCK = (
+        "da_lock:check_user_file_graph_processing_beat"
+    )
+    USER_FILE_GRAPH_PROCESSING_LOCK_PREFIX = (
+        "da_lock:user_file_graph_processing"
+    )
+    USER_FILE_GRAPH_PROCESSING_QUEUED_PREFIX = (
+        "da_lock:user_file_graph_processing_queued"
+    )
+
 
 class OnyxRedisSignals:
     BLOCK_VALIDATE_INDEXING_FENCES = "signal:block_validate_indexing_fences"
@@ -709,6 +722,12 @@ class OnyxCeleryTask:
     # Graph processing
     CHECK_FOR_GRAPH_PROCESSING = "check_for_graph_processing"
     PROCESS_DOCUMENT_GRAPH = "process_document_graph"
+
+    # User file graph processing
+    CHECK_FOR_USER_FILE_GRAPH_PROCESSING = (
+        "check_for_user_file_graph_processing"
+    )
+    PROCESS_USER_FILE_GRAPH = "process_user_file_graph"
 
 
 # this needs to correspond to the matching entry in supervisord
