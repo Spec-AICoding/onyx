@@ -165,8 +165,8 @@ def run_jobs() -> None:
         ("LIGHT", cmd_worker_light),
         # Optional workers — comment out to reduce resource usage:
         ("DOCPROCESSING", cmd_worker_docprocessing),
-        # ("DOCFETCHING", cmd_worker_docfetching),
-        # ("HEAVY", cmd_worker_heavy),
+        ("DOCFETCHING", cmd_worker_docfetching),
+        ("HEAVY", cmd_worker_heavy),
         # ("MONITORING", cmd_worker_monitoring),
         ("USER_FILE_PROCESSING", cmd_worker_user_file_processing),
         # ("SCHEDULED_TASKS", cmd_worker_scheduled_tasks),

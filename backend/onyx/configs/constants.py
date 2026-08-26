@@ -727,7 +727,7 @@ class OnyxCeleryTask:
 
     # Graph processing
     CHECK_FOR_GRAPH_PROCESSING = "check_for_graph_processing"
-    PROCESS_DOCUMENT_GRAPH = "process_document_graph"
+    PROCESS_FILE_RECORD_GRAPH = "process_file_record_graph"
 
     # User file graph processing
     CHECK_FOR_USER_FILE_GRAPH_PROCESSING = (

@@ -1,0 +1,336 @@
+@import "@onyx-ai/opal/root.css";
+@import "./css/attachment-button.css" layer(base);
+@import "./css/button.css" layer(base);
+@import "./css/content-editable.css" layer(base);
+@import "./css/card.css" layer(base);
+@import "./css/comet.css" layer(base);
+@import "./css/color-swatch.css" layer(base);
+@import "./css/divider.css" layer(base);
+@import "./css/general-layouts.css" layer(base);
+@import "./css/inputs.css" layer(base);
+@import "./css/knowledge-table.css" layer(base);
+@import "./css/line-item.css" layer(base);
+@import "./css/square-button.css" layer(base);
+@import "./css/z-index.css" layer(base);
+/* Imported unlayered (and gated on html.onyx-desktop) so it overrides the
+   frozen desktop-wrapper shim regardless of source order. */
+@import "./css/desktop-titlebar.css";
+@config '../../tailwind.config.js';
+
+/* === MagicBox 品牌覆盖（科技蓝 + 冷灰 + 中文字体栈） ===
+   必须在 opal root.css 之后声明，才能覆盖共享 tokens。
+   Light 模式下 --theme-primary-* 引用 --onyx-ink-*，
+   而 --onyx-ink-* 仅被 theme-primary 消费，覆盖它安全。 */
+:root {
+  /* 主色：科技蓝（替代 Onyx 墨色） */
+  --onyx-ink-100: #1e3a5f; /* 深海军蓝 */
+  --onyx-ink-95: #1e40af; /* blue-800 */
+  --onyx-ink-90: #2563eb; /* blue-600 */
+
+  /* 背景：冷灰（替代暖灰 tint） */
+  --background-tint-00: #f8fafc; /* slate-50 */
+  --background-tint-01: #f1f5f9; /* slate-100 */
+  --background-tint-02: #e2e8f0; /* slate-200 */
+  --background-tint-03: #cbd5e1; /* slate-300 */
+  --background-tint-04: #94a3b8; /* slate-400 */
+
+  /* 字体：中文优先 */
+  --font-hanken-grotesk: "PingFang SC", "Noto Sans SC", "Hanken Grotesk",
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-kh-teka: "PingFang SC", "Noto Sans SC", "KH Teka", sans-serif;
+}
+
+.dark {
+  --theme-primary-06: #93c5fd; /* blue-300 */
+  --theme-primary-05: #60a5fa; /* blue-400 */
+  --theme-primary-04: #3b82f6; /* blue-500 */
+
+  /* 冷灰暗色背景（覆盖 :root 中的浅色 tint，避免浅色泄漏到暗色模式） */
+  --background-tint-00: #0b1220; /* slate-950 */
+  --background-tint-01: #0f172a; /* slate-900 */
+  --background-tint-02: #1e293b; /* slate-800 */
+  --background-tint-03: #334155; /* slate-700 */
+  --background-tint-04: #475569; /* slate-600 */
+}
+
+/* next/font 生成的 .hanken_grotesk_*__variable 类会在 :root 之后重新定义
+   --font-hanken-grotesk，用更高优先级的选择器确保中文字体栈生效。 */
+html:root {
+  --font-hanken-grotesk: "PingFang SC", "Noto Sans SC", "Hanken Grotesk",
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+}
+
+@utility radial-00 {
+  /* RADIAL GRADIENTS */
+  background: radial-gradient(
+    236.31% 141.42% at 0% 0%,
+    var(--background-tint-00) 0%,
+    var(--background-tint-01) 100%
+  );
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    overscroll-behavior-y: none;
+    overflow-anchor: none;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+  }
+}
+
+/* Markdown chat overrides — placed in `utilities` so they sit in the same
+   cascade layer as `@tailwindcss/typography` (which v4 emits there). The
+   plugin's selectors use `:where()` (zero specificity), so our regular
+   selectors win within the layer. Leaving these in `@layer base` would let
+   the plugin's utilities-layer rules override them regardless of specificity. */
+@layer utilities {
+  ol > li > p,
+  ul > li > p {
+    margin-top: 0;
+    margin-bottom: 0;
+    display: inline;
+    /* Make paragraphs inline to reduce vertical space */
+  }
+
+  /* Reduce spacing for markdown elements in chat */
+  .prose h1,
+  .prose h2,
+  .prose h3,
+  .prose h4,
+  .prose h5,
+  .prose h6 {
+    margin-top: 0.75em;
+    margin-bottom: 0.5em;
+  }
+
+  .prose ul,
+  .prose ol {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+
+  .prose ol {
+    list-style-type: decimal;
+    padding-left: 1.5rem;
+    margin-left: 0;
+  }
+
+  .prose ul {
+    list-style-type: disc;
+    padding-left: 1.5rem;
+    margin-left: 0;
+  }
+
+  .prose li {
+    margin-top: 0.25em;
+    margin-bottom: 0.25em;
+    display: list-item;
+  }
+
+  .prose hr {
+    margin-top: 1.25em;
+    margin-bottom: 1em;
+  }
+
+  .prose p {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+
+  /* Remove top margin from first child to align with icon */
+  .prose > :first-child {
+    margin-top: 0;
+  }
+
+  /* Remove bottom margin from last child to avoid extra space */
+  .prose > :last-child {
+    margin-bottom: 0;
+  }
+}
+
+@layer utilities {
+  /* SCROLL BAR */
+
+  .default-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #888 transparent;
+    overflow-y: scroll;
+    overflow-x: hidden;
+  }
+
+  .scrollbar {
+    width: 100%;
+    height: 100%;
+  }
+
+  .inputscroll {
+    scrollbar-width: none;
+  }
+}
+
+@layer base {
+  * {
+    scrollbar-width: auto;
+  }
+}
+
+/* DBG */
+
+@utility dbg-red {
+  /* DEBUGGING UTILITIES
+  If you ever want to highlight a component for debugging purposes, just type in `className="dbg-red ..."`, and a red box should appear around it.
+  This helps with placing things properly on the screen and seeing how they look during active development.
+  */
+  border: 1px solid red;
+}
+
+@utility dbg-blue {
+  border: 1px solid blue;
+}
+
+@utility dbg-green {
+  border: 1px solid green;
+}
+
+/* TEXTAREA */
+
+/* In `base` so utility classes (e.g. `resize-none`) can override; an
+   unlayered rule would beat every layered Tailwind utility. */
+@layer base {
+  textarea {
+    resize: vertical;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+}
+
+.nextjs-portal {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  position: absolute !important;
+  pointer-events: none !important;
+  clip: rect(0, 0, 0, 0) !important;
+}
+
+.nextjs-portal * {
+  display: none !important;
+}
+
+/* Used to create alternatie to React Markdown */
+.preserve-lines {
+  white-space: pre-wrap;
+  /* Preserves whitespace and wraps text */
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0% 0;
+  }
+}
+
+.shimmer-text {
+  animation: shimmer 1s ease-out infinite;
+  background-size: 300% 100%;
+  background-image: linear-gradient(
+    90deg,
+    var(--shimmer-base) 35%,
+    var(--shimmer-highlight) 50%,
+    var(--shimmer-base) 65%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.collapsible {
+  max-height: 300px;
+  transition:
+    max-height 0.5s ease-in-out,
+    opacity 0.5s ease-in-out;
+  opacity: 1;
+}
+
+.collapsible-closed {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.prevent-scroll {
+  overscroll-behavior-y: none;
+}
+
+/* CUSTOM ANIMATIONS */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* Recording waveform animation */
+@keyframes waveform {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-waveform {
+  animation: waveform 0.8s ease-in-out infinite;
+}
+
+.container {
+  margin-bottom: 1rem;
+}

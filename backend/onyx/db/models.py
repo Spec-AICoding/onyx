@@ -4669,6 +4669,11 @@ class FileRecord(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
+    # Completion marker for document batch handoff files (iab/<cc_pair>/...).
+    # Batch rows are retained (not deleted) once docprocessing finishes; the
+    # flag doubles as the completion marker that checkpoint resume relies on.
+    processed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
 
 class FileContent(Base):
     """Stores file content in PostgreSQL using Large Objects.

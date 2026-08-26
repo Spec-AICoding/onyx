@@ -25,14 +25,10 @@ from onyx.configs.constants import (
     OnyxCeleryTask,
     OnyxRedisLocks,
 )
-from onyx.db.document import update_document_kg_stage
 from onyx.db.engine.sql_engine import get_session_with_current_tenant
-from onyx.db.models import Document as DbDocument
 from onyx.db.models import FileRecord
 from onyx.redis.redis_pool import get_redis_client
 from onyx.kg.models import KGStage
-
-FILE_CONNECTOR_PREFIX = "FILE_CONNECTOR__"
 
 
 def _file_extension(display_name: str | None) -> str:
@@ -43,8 +39,8 @@ def _file_extension(display_name: str | None) -> str:
     return ext.lstrip(".").lower()
 
 
-def _graph_processing_queued_key(document_id: str) -> str:
-    return f"{OnyxRedisLocks.GRAPH_PROCESSING_QUEUED_PREFIX}:{document_id}"
+def _graph_processing_queued_key(file_id: str) -> str:
+    return f"{OnyxRedisLocks.GRAPH_PROCESSING_QUEUED_PREFIX}:{file_id}"
 
 
 @shared_task(
@@ -54,12 +50,13 @@ def _graph_processing_queued_key(document_id: str) -> str:
     ignore_result=True,
 )
 def check_for_graph_processing(self: Task, *, tenant_id: str) -> None:
-    """Scan for file-based documents with kg_stage=NOT_STARTED and enqueue per-doc tasks.
+    """Scan file_records with processed=true and kg_stage=NOT_STARTED and enqueue per-file tasks.
 
-    Only FILE_CONNECTOR__-prefixed documents (file uploads) are eligible.
+    Only file records that finished docprocessing (processed=true) and have
+    not been graph-processed yet (kg_stage=not_started) are eligible.
     Three protections against queue runaway:
     1. Queue depth backpressure
-    2. Per-document queued guard (Redis SETNX)
+    2. Per-file queued guard (Redis SETNX)
     3. Task expiry auto-drain
     """
     task_logger.info("check_for_graph_processing - Starting")
@@ -89,19 +86,16 @@ def check_for_graph_processing(self: Task, *, tenant_id: str) -> None:
             return None
 
         with get_session_with_current_tenant() as db_session:
-            doc_ids = (
-                db_session.execute(
-                    select(DbDocument.id).where(
-                        DbDocument.kg_stage == KGStage.NOT_STARTED,
-                        DbDocument.id.startswith(FILE_CONNECTOR_PREFIX),
-                    )
+            rows = db_session.execute(
+                text(
+                    "SELECT file_id FROM file_record "
+                    "WHERE processed = true AND kg_stage = 'not_started'"
                 )
-                .scalars()
-                .all()
-            )
+            ).fetchall()
 
-            for document_id in doc_ids:
-                queued_key = _graph_processing_queued_key(document_id)
+            for row in rows:
+                file_id = str(row[0])
+                queued_key = _graph_processing_queued_key(file_id)
                 guard_set = redis_client.set(
                     queued_key,
                     1,
@@ -114,9 +108,9 @@ def check_for_graph_processing(self: Task, *, tenant_id: str) -> None:
 
                 try:
                     self.app.send_task(
-                        OnyxCeleryTask.PROCESS_DOCUMENT_GRAPH,
+                        OnyxCeleryTask.PROCESS_FILE_RECORD_GRAPH,
                         kwargs={
-                            "document_id": document_id,
+                            "file_id": file_id,
                             "tenant_id": tenant_id,
                         },
                         queue=OnyxCeleryQueues.GRAPH_PROCESSING,
@@ -140,50 +134,58 @@ def check_for_graph_processing(self: Task, *, tenant_id: str) -> None:
 
 
 @shared_task(
-    name=OnyxCeleryTask.PROCESS_DOCUMENT_GRAPH,
+    name=OnyxCeleryTask.PROCESS_FILE_RECORD_GRAPH,
     bind=True,
     ignore_result=True,
 )
-def process_document_graph(
+def process_file_record_graph(
     self: Task,  # noqa: ARG001
     *,
-    document_id: str,
+    file_id: str,
     tenant_id: str,
 ) -> None:
-    """Call external graph API with S3 file info for a document.
+    """Call external graph API with S3 file info for a processed file record.
 
-    1. Set kg_stage → EXTRACTING
-    2. Extract file_id from document_id (FILE_CONNECTOR__<uuid> → uuid)
-    3. Look up FileRecord to get bucket, key, display_name
-    4. POST to graph API
-    5. Set kg_stage → EXTRACTED (success) or FAILED (error)
+    1. Set kg_stage → EXTRACTING + kg_processing_time on file_record
+    2. Look up FileRecord to get bucket, key, display_name
+    3. POST to graph API
+    4. Set kg_stage → EXTRACTED + kg_processing_time (success) or FAILED (error)
     """
-    task_logger.info(f"process_document_graph - Processing document_id={document_id}")
+    task_logger.info(f"process_file_record_graph - Processing file_id={file_id}")
 
     with get_session_with_current_tenant() as db_session:
-        # 1. Set kg_stage = EXTRACTING
-        update_document_kg_stage(db_session, document_id, KGStage.EXTRACTING)
+        # 1. Mark EXTRACTING with processing time
+        db_session.execute(
+            text(
+                "UPDATE file_record SET kg_stage = :stage, "
+                "kg_processing_time = :ts WHERE file_id = :file_id"
+            ),
+            {
+                "stage": KGStage.EXTRACTING.value,
+                "ts": datetime.datetime.now(datetime.timezone.utc),
+                "file_id": file_id,
+            },
+        )
 
-        # 2. Extract file_id from document_id
-        file_id = document_id
-        if document_id.startswith(FILE_CONNECTOR_PREFIX):
-            file_id = document_id[len(FILE_CONNECTOR_PREFIX) :]
-
-        # 3. Look up FileRecord
+        # 2. Look up FileRecord
         file_record = db_session.execute(
             select(FileRecord).where(FileRecord.file_id == file_id)
         ).scalar_one_or_none()
 
         if not file_record:
             task_logger.warning(
-                f"process_document_graph - No file_record found for "
-                f"document_id={document_id} file_id={file_id}"
+                f"process_file_record_graph - No file_record found for file_id={file_id}"
             )
-            update_document_kg_stage(db_session, document_id, KGStage.FAILED)
+            db_session.execute(
+                text(
+                    "UPDATE file_record SET kg_stage = :stage WHERE file_id = :file_id"
+                ),
+                {"stage": KGStage.FAILED.value, "file_id": file_id},
+            )
             db_session.commit()
             return None
 
-        # 4. Build and send API request
+        # 3. Build and send API request
         file_type = _file_extension(file_record.display_name)
 
         payload = {
@@ -197,8 +199,8 @@ def process_document_graph(
         }
 
         task_logger.info(
-            f"process_document_graph - POST to graph API: "
-            f"document_id={document_id} file_type={file_type}"
+            f"process_file_record_graph - POST to graph API: "
+            f"file_id={file_id} file_type={file_type}"
         )
 
         try:
@@ -208,15 +210,30 @@ def process_document_graph(
                 timeout=GRAPH_PROCESSING_API_TIMEOUT,
             )
             response.raise_for_status()
-            update_document_kg_stage(db_session, document_id, KGStage.EXTRACTED)
+            db_session.execute(
+                text(
+                    "UPDATE file_record SET kg_stage = :stage, "
+                    "kg_processing_time = :ts WHERE file_id = :file_id"
+                ),
+                {
+                    "stage": KGStage.EXTRACTED.value,
+                    "ts": datetime.datetime.now(datetime.timezone.utc),
+                    "file_id": file_id,
+                },
+            )
             task_logger.info(
-                f"process_document_graph - Success for document_id={document_id}"
+                f"process_file_record_graph - Success for file_id={file_id}"
             )
         except Exception as e:
             task_logger.error(
-                f"process_document_graph - Failed for document_id={document_id}: {e}"
+                f"process_file_record_graph - Failed for file_id={file_id}: {e}"
             )
-            update_document_kg_stage(db_session, document_id, KGStage.FAILED)
+            db_session.execute(
+                text(
+                    "UPDATE file_record SET kg_stage = :stage WHERE file_id = :file_id"
+                ),
+                {"stage": KGStage.FAILED.value, "file_id": file_id},
+            )
 
         db_session.commit()
 

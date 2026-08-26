@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Delete connector-synced documents and manually uploaded files from Postgres.
+"""Delete connector-synced documents, manually uploaded files, and file records
+from Postgres.
 
 Deletes ONLY:
   - connector-synced documents (document rows referenced by
@@ -7,9 +8,14 @@ Deletes ONLY:
     kg tables, chunk_stats, document_retrieval_feedback, document__tag)
   - manually uploaded user files (user_file rows + persona__user_file /
     project__user_file links + their document rows)
+  - file records (file_record rows + file_content via FK cascade, and
+    usage_reports rows which FK-reference file_record without CASCADE)
+  - index attempts (index_attempt rows + index_attempt_errors which
+    FK-reference index_attempt without CASCADE; index_attempt_stage_metrics
+    rows cascade via FK)
 
 All other tables (user, persona, chat_session, chat_message, connector,
-credential, connector_credential_pair, ...) are left untouched.
+credential, connector_credential_pair, document_set, ...) are left untouched.
 
 This only touches Postgres. OpenSearch chunks are NOT removed here — run
 clear_opensearch.py separately to wipe the document index.
@@ -42,8 +48,12 @@ from onyx.db.document import delete_documents_complete__no_commit  # noqa: E402
 from onyx.db.engine.sql_engine import SqlEngine  # noqa: E402
 from onyx.db.models import (  # noqa: E402
     DocumentByConnectorCredentialPair,
+    FileRecord,
+    IndexAttempt,
+    IndexAttemptError,
     Persona__UserFile,
     Project__UserFile,
+    UsageReport,
     UserFile,
 )
 from onyx.db.tag import delete_orphan_tags_batched  # noqa: E402
@@ -115,6 +125,18 @@ def main() -> int:
             .select_from(Project__UserFile)
             .where(Project__UserFile.user_file_id.in_(user_file_ids))
         )
+        n_file_records = db_session.scalar(
+            select(func.count()).select_from(FileRecord)
+        )
+        n_usage_reports = db_session.scalar(
+            select(func.count()).select_from(UsageReport)
+        )
+        n_index_attempt_errors = db_session.scalar(
+            select(func.count()).select_from(IndexAttemptError)
+        )
+        n_index_attempts = db_session.scalar(
+            select(func.count()).select_from(IndexAttempt)
+        )
 
         print(f"Connecting to Postgres at {pg_host}:{pg_port}")
         print(f"  connector-synced documents : {len(connector_doc_ids)}")
@@ -123,8 +145,17 @@ def main() -> int:
         print(f"  document_by_cc_pair links   : {n_cc_links}")
         print(f"  persona__user_file links    : {n_puf}")
         print(f"  project__user_file links    : {n_proj_uf}")
+        print(f"  file records to delete      : {n_file_records}")
+        print(f"  usage reports to delete     : {n_usage_reports}")
+        print(f"  index attempt errors        : {n_index_attempt_errors}")
+        print(f"  index attempts to delete    : {n_index_attempts}")
 
-        if not all_doc_ids and not user_file_ids:
+        if (
+            not all_doc_ids
+            and not user_file_ids
+            and not n_file_records
+            and not n_index_attempts
+        ):
             print("Nothing to delete.")
             return 0
 
@@ -134,8 +165,8 @@ def main() -> int:
 
         if not args.yes:
             answer = input(
-                "Really delete all documents + user files? This is IRREVERSIBLE. "
-                "[y/N]: "
+                "Really delete all documents + user files + file records + index "
+                "attempts? This is IRREVERSIBLE. [y/N]: "
             )
             if answer.strip().lower() not in ("y", "yes"):
                 print("Aborted.")
@@ -165,11 +196,36 @@ def main() -> int:
             delete_documents_complete__no_commit(db_session, batch)
             db_session.flush()
 
+        # 5. Delete usage reports first — they FK-reference file_record
+        #    without ON DELETE CASCADE.
+        if n_usage_reports:
+            db_session.execute(delete(UsageReport))
+
+        # 6. Delete file records (file_content rows cascade via FK).
+        if n_file_records:
+            db_session.execute(delete(FileRecord))
+
+        # 7. Delete index attempt errors first — they FK-reference
+        #    index_attempt without ON DELETE CASCADE.
+        if n_index_attempt_errors:
+            db_session.execute(delete(IndexAttemptError))
+
+        # 8. Delete index attempts (index_attempt_stage_metrics rows cascade
+        #    via FK). Deleting them resets each connector's sync checkpoint:
+        #    the next sync re-traverses from connector.indexing_start.
+        if n_index_attempts:
+            db_session.execute(delete(IndexAttempt))
+
         db_session.commit()
 
-        # 5. Drain orphaned tags
+        # 7. Drain orphaned tags
         deleted_tags = delete_orphan_tags_batched(db_session)
-        print(f"Deleted {len(all_doc_ids)} documents, {len(user_file_ids)} user files.")
+        print(
+            f"Deleted {len(all_doc_ids)} documents, {len(user_file_ids)} user files, "
+            f"{n_file_records} file records, {n_usage_reports} usage reports, "
+            f"{n_index_attempt_errors} index attempt errors, "
+            f"{n_index_attempts} index attempts."
+        )
         print(f"Deleted {deleted_tags} orphan tags.")
         print("Done. Run clear_opensearch.py separately to wipe the chunk index.")
 

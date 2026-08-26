@@ -8,6 +8,8 @@ from pydantic import BaseModel
 
 from onyx.configs.constants import FileOrigin
 from onyx.connectors.models import DocExtractionContext, DocIndexingContext, Document
+from onyx.db.engine.sql_engine import get_session_with_current_tenant
+from onyx.db.models import FileRecord
 from onyx.file_store.file_store import FileStore, get_default_file_store
 from onyx.utils.logger import setup_logger
 
@@ -223,16 +225,25 @@ class FileStoreDocumentBatchStorage(DocumentBatchStorage):
             raise
 
     def delete_batch_by_name(self, batch_file_name: str) -> None:
-        """Delete a specific batch from FileStore."""
-        self.file_store.delete_file(batch_file_name, error_on_missing=False)
-        logger.debug("Deleted batch %s from FileStore", batch_file_name)
+        """Mark a batch as processed instead of physically deleting it.
+
+        The MinIO object and file_record row are retained; the processed flag
+        doubles as the completion marker that checkpoint resume relies on
+        (unprocessed batches are the only ones re-issued on resume).
+        """
+        with get_session_with_current_tenant() as db_session:
+            db_session.query(FileRecord).filter_by(
+                file_id=batch_file_name
+            ).update({"processed": True})
+            db_session.commit()
+        logger.debug("Marked batch %s as processed", batch_file_name)
 
     def delete_batch_by_num(self, batch_num: int) -> None:
-        """Delete a specific batch from FileStore."""
+        """Mark a specific batch as processed."""
         batch_file_name = self._get_batch_file_name(batch_num)
         self.delete_batch_by_name(batch_file_name)
         logger.debug(
-            "Deleted batch num %s %s from FileStore", batch_num, batch_file_name
+            "Marked batch num %s %s as processed", batch_num, batch_file_name
         )
 
     def cleanup_all_batches(self) -> None:
@@ -251,6 +262,7 @@ class FileStoreDocumentBatchStorage(DocumentBatchStorage):
             for file in self.file_store.list_files_by_prefix(
                 self._per_cc_pair_base_path()
             )
+            if not file.processed
         ]
 
     def update_old_batches_to_new_index_attempt(self, batch_names: list[str]) -> None:
