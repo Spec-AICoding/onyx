@@ -65,12 +65,12 @@ import {
 import { Modal } from "@opal/components";
 import GenericConfirmModal from "@/sections/modals/GenericConfirmModal";
 import { Switch } from "@opal/components";
-import { useMcpServersForAgentEditor } from "@/lib/agents/hooks";
+import { useMcpServers } from "@/lib/tools/hooks";
 import useOpenApiTools from "@/hooks/useOpenApiTools";
-import { getActionIcon } from "@/lib/tools/mcpUtils";
+import { getActionIcon } from "@/lib/tools/utils";
 import { Disabled, Hoverable } from "@opal/core";
 import useFilter from "@/hooks/useFilter";
-import { MCPServer } from "@/lib/tools/interfaces";
+import { MCPServer } from "@/lib/tools/types";
 import type { IconProps } from "@opal/types";
 import { useTierAtLeast } from "@/hooks/useTierAtLeast";
 import { Tier } from "@/lib/settings/types";
@@ -114,7 +114,7 @@ function MCPServerCard({
 
   const allToolIds = tools.map((t) => t.id);
   const serverEnabled = tools.some((t) => isToolEnabled(t.id));
-  const needsAuth = !server.is_authenticated;
+  const needsAuth = !server.user_can_authenticate;
   const authTooltip = needsAuth
     ? "Authenticate this MCP server before enabling its tools."
     : undefined;
@@ -127,13 +127,13 @@ function MCPServerCard({
       expandable
       expanded={expanded}
       border="solid"
-      rounding="lg"
-      padding="sm"
+      rounding={4}
+      padding={2}
       expandedContent={
         hasContent ? (
-          <Section gap={0.5} padding={0.5}>
+          <Section gap={2} padding={2}>
             {filteredTools.map((tool) => (
-              <Card key={tool.id} border="solid" rounding="md">
+              <Card key={tool.id} border="solid" rounding={3}>
                 <InputHorizontal
                   icon={tool.icon}
                   title={tool.name}
@@ -159,7 +159,7 @@ function MCPServerCard({
       <CardLayout.Header
         bottomChildren={
           tools.length > 0 ? (
-            <Section flexDirection="row" gap={0.5}>
+            <Section flexDirection="row" gap={2}>
               <InputTypeIn
                 placeholder="Search tools..."
                 variant="internal"
@@ -186,7 +186,7 @@ function MCPServerCard({
             description={server.description}
             sizePreset="main-ui"
             variant="section"
-            padding="fit"
+            padding={0}
             rightChildren={
               <Tooltip tooltip={authTooltip} side="top">
                 <Switch
@@ -586,7 +586,7 @@ function RetentionField({ value, disabled, onSave }: RetentionFieldProps) {
               disabled ? "disabled" : customInvalid ? "error" : undefined
             }
             rightChildren={
-              <Section flexDirection="row" gap={0.125} width="fit" height="fit">
+              <Section flexDirection="row" gap={0.5} width="fit" height="fit">
                 <Button
                   icon={SvgRevert}
                   tooltip="Restore Default"
@@ -794,7 +794,7 @@ export default function ChatPreferencesPage() {
   const uniqueSources = Array.from(new Set(ccPairs.map((p) => p.source)));
 
   // MCP servers and OpenAPI tools
-  const { mcpData } = useMcpServersForAgentEditor();
+  const { mcpData } = useMcpServers();
   const { openApiTools: openApiToolsRaw } = useOpenApiTools();
   const mcpServers = mcpData?.mcp_servers ?? [];
   const openApiTools = openApiToolsRaw ?? [];
@@ -890,7 +890,7 @@ export default function ChatPreferencesPage() {
 
       try {
         const response = await fetch("/api/admin/settings", {
-          method: "PUT",
+          method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(newSettings),
         });
@@ -922,7 +922,7 @@ export default function ChatPreferencesPage() {
 
         <SettingsLayouts.Body>
           {/* Features */}
-          <Card border="solid" rounding="lg">
+          <Card border="solid" rounding={4}>
             <Section alignItems="stretch">
               <Disabled
                 disabled={!businessTier || uniqueSources.length === 0}
@@ -1023,6 +1023,21 @@ export default function ChatPreferencesPage() {
                 />
               </InputHorizontal>
               <InputHorizontal
+                title="Reasoning Control"
+                description="Let users adjust how much reasoning the model performs before answering, from the model picker in chat."
+                withLabel
+              >
+                <Switch
+                  id="reasoning_override_enabled"
+                  checked={s.reasoning_override_enabled ?? true}
+                  onCheckedChange={(checked) => {
+                    void saveSettings({
+                      reasoning_override_enabled: checked,
+                    });
+                  }}
+                />
+              </InputHorizontal>
+              <InputHorizontal
                 title="Chat Naming Model"
                 description="Model used to auto-name chat sessions. Defaults to each session's own model — pin a small, fast model here if your main model can't serve concurrent requests."
                 withLabel
@@ -1051,10 +1066,10 @@ export default function ChatPreferencesPage() {
             </Section>
           </Card>
 
-          <Divider paddingParallel="fit" paddingPerpendicular="fit" />
+          <Divider paddingParallel={0} paddingPerpendicular={0} />
 
           {/* Team Context */}
-          <Section gap={1}>
+          <Section gap={4}>
             <InputVertical
               title="Team Name"
               subDescription="This is added to all chat sessions as additional context to provide a richer/customized experience."
@@ -1112,13 +1127,13 @@ export default function ChatPreferencesPage() {
             </Button>
           </InputHorizontal>
 
-          <Divider paddingParallel="fit" paddingPerpendicular="fit" />
+          <Divider paddingParallel={0} paddingPerpendicular={0} />
 
           <Disabled disabled={s.disable_default_assistant ?? false}>
             <div>
-              <Section gap={1.5}>
+              <Section gap={6}>
                 {/* Connectors */}
-                <Section gap={0.75}>
+                <Section gap={3}>
                   <Content
                     title="Connectors"
                     sizePreset="main-content"
@@ -1129,7 +1144,7 @@ export default function ChatPreferencesPage() {
                     flexDirection="row"
                     justifyContent="between"
                     alignItems="center"
-                    gap={0.25}
+                    gap={1}
                   >
                     {uniqueSources.length === 0 ? (
                       <EmptyMessageCard
@@ -1142,13 +1157,13 @@ export default function ChatPreferencesPage() {
                           flexDirection="row"
                           justifyContent="start"
                           alignItems="center"
-                          gap={0.25}
+                          gap={1}
                         >
                           {uniqueSources.slice(0, 3).map((source) => {
                             const meta = getSourceMetadata(source);
                             return (
                               <div key={source} className="w-40">
-                                <Card padding="sm" border="solid">
+                                <Card padding={2} border="solid">
                                   <Content
                                     icon={meta.icon}
                                     title={meta.displayName}
@@ -1179,9 +1194,9 @@ export default function ChatPreferencesPage() {
                     description="Tools and capabilities available for chat to use. This does not apply to agents."
                   />
                   <SimpleCollapsible.Content>
-                    <Section gap={0.5} alignItems="stretch">
+                    <Section gap={2} alignItems="stretch">
                       {vectorDbEnabled && searchTool && (
-                        <Card border="solid" rounding="lg">
+                        <Card border="solid" rounding={4}>
                           <InputHorizontal
                             title="Internal Search"
                             description="Search through your organization's connected knowledge base and documents."
@@ -1201,7 +1216,7 @@ export default function ChatPreferencesPage() {
                         disabled={!imageGenTool}
                         tooltip="Image generation requires a configured model. Set one up under Configuration > Image Generation, or ask an admin."
                       >
-                        <Card border="solid" rounding="lg">
+                        <Card border="solid" rounding={4}>
                           <InputHorizontal
                             title="Image Generation"
                             description="Generate and manipulate images using AI-powered tools."
@@ -1225,7 +1240,7 @@ export default function ChatPreferencesPage() {
                       </Disabled>
 
                       <Disabled disabled={!webSearchTool}>
-                        <Card border="solid" rounding="lg">
+                        <Card border="solid" rounding={4}>
                           <InputHorizontal
                             title="Web Search"
                             description="Search the web for real-time information and up-to-date results."
@@ -1249,7 +1264,7 @@ export default function ChatPreferencesPage() {
                       </Disabled>
 
                       <Disabled disabled={!openURLTool}>
-                        <Card border="solid" rounding="lg">
+                        <Card border="solid" rounding={4}>
                           <InputHorizontal
                             title="Open URL"
                             description="Fetch and read content from web URLs."
@@ -1273,7 +1288,7 @@ export default function ChatPreferencesPage() {
                       </Disabled>
 
                       <Disabled disabled={!codeInterpreterTool}>
-                        <Card border="solid" rounding="lg">
+                        <Card border="solid" rounding={4}>
                           <InputHorizontal
                             title="Code Interpreter"
                             description="Generate and run code."
@@ -1297,7 +1312,7 @@ export default function ChatPreferencesPage() {
                       </Disabled>
 
                       <Disabled disabled={!codingAgentTool}>
-                        <Card border="solid" rounding="lg">
+                        <Card border="solid" rounding={4}>
                           <InputHorizontal
                             title="Coding Agent"
                             description="Investigate a GitHub repository and answer questions about its code."
@@ -1324,14 +1339,11 @@ export default function ChatPreferencesPage() {
                     {/* Separator between built-in tools and MCP/OpenAPI tools */}
                     {(mcpServersWithTools.length > 0 ||
                       openApiTools.length > 0) && (
-                      <Divider
-                        paddingPerpendicular="sm"
-                        paddingParallel="fit"
-                      />
+                      <Divider paddingPerpendicular={2} paddingParallel={0} />
                     )}
 
                     {/* MCP Servers & OpenAPI Tools */}
-                    <Section gap={0.5}>
+                    <Section gap={2}>
                       {mcpServersWithTools.map(({ server, tools }) => (
                         <MCPServerCard
                           key={server.id}
@@ -1343,7 +1355,7 @@ export default function ChatPreferencesPage() {
                         />
                       ))}
                       {openApiTools.map((tool) => (
-                        <Card key={tool.id} border="solid" rounding="lg">
+                        <Card key={tool.id} border="solid" rounding={4}>
                           <InputHorizontal
                             icon={SvgActions}
                             title={tool.display_name || tool.name}
@@ -1366,14 +1378,14 @@ export default function ChatPreferencesPage() {
             </div>
           </Disabled>
 
-          <Divider paddingParallel="fit" paddingPerpendicular="fit" />
+          <Divider paddingParallel={0} paddingPerpendicular={0} />
 
           {/* Advanced Options */}
           <SimpleCollapsible defaultOpen={false}>
             <SimpleCollapsible.Header title="Advanced Options" />
             <SimpleCollapsible.Content>
-              <Section gap={1}>
-                <Card border="solid" rounding="lg">
+              <Section gap={4}>
+                <Card border="solid" rounding={4}>
                   <Section alignItems="stretch">
                     <Disabled
                       disabled={!enterpriseTier}
@@ -1445,7 +1457,7 @@ export default function ChatPreferencesPage() {
                   </Section>
                 </Card>
 
-                <Card border="solid" rounding="lg">
+                <Card border="solid" rounding={4}>
                   <InputVertical
                     title="File Attachment Size Limit"
                     description="Files attached in chats and projects must fit within both limits to be accepted. Larger files increase latency, memory usage, and token costs."
@@ -1480,7 +1492,7 @@ export default function ChatPreferencesPage() {
                   </InputVertical>
                 </Card>
 
-                <Card border="solid" rounding="lg">
+                <Card border="solid" rounding={4}>
                   <Section>
                     <InputHorizontal
                       title="Allow Anonymous Users"
@@ -1498,8 +1510,8 @@ export default function ChatPreferencesPage() {
                     </InputHorizontal>
 
                     <InputHorizontal
-                      title="Always Start with an Agent"
-                      description="This removes the default chat. Users will always start in an agent, and new chats will be created in their last active agent. Set featured agents to help new users get started."
+                      title="Disable Default Chat"
+                      description="This forces users to always start in an agent. New chats will be created in their first pinned agent. Set featured agents to help new users get started."
                       withLabel
                     >
                       <Switch
@@ -1568,7 +1580,7 @@ export default function ChatPreferencesPage() {
                     onClose={() => setSystemPromptModalOpen(false)}
                   />
                   <Modal.Body>
-                    <Section gap={0.25} alignItems="start">
+                    <Section gap={1} alignItems="start">
                       <Hoverable.Root group="systemPromptRestore" width="full">
                         <InputTextAreaField
                           name="system_prompt"
@@ -1600,7 +1612,7 @@ export default function ChatPreferencesPage() {
                     <MessageCard
                       title="Modify with caution."
                       description="System prompt affects all chats, agents, and projects. Significant changes may degrade response quality."
-                      padding="xs"
+                      padding={1}
                     />
                   </Modal.Body>
                   <Modal.Footer>

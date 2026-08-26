@@ -1,17 +1,18 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect } from "react";
+import { ADMIN_ROUTES } from "@/lib/admin-routes";
 import { KeyedMutator } from "swr";
 import MCPActionCard from "@/sections/actions/MCPActionCard";
 import AdminListHeader from "@/sections/admin/AdminListHeader";
 import ActionCardSkeleton from "@/sections/actions/skeleton/ActionCardSkeleton";
-import { getActionIcon } from "@/lib/tools/mcpUtils";
+import { getActionIcon } from "@/lib/tools/utils";
 import {
   ActionStatus,
   MCPServerStatus,
   MCPServer,
   ToolSnapshot,
-} from "@/lib/tools/interfaces";
+} from "@/lib/tools/types";
 import { toast } from "@opal/layouts";
 import { useCreateModal } from "@opal/components";
 import MCPAuthenticationModal from "@/sections/actions/modals/MCPAuthenticationModal";
@@ -24,10 +25,10 @@ import {
   updateMCPServerStatus,
   updateMCPServer,
   updateToolsStatus,
-} from "@/lib/tools/mcpService";
+} from "@/lib/tools/svc";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
-import useMcpServers from "@/hooks/useMcpServers";
+import { useAdminMcpServers } from "@/lib/tools/hooks";
 
 export default function MCPPageContent() {
   // Data fetching
@@ -35,7 +36,7 @@ export default function MCPPageContent() {
     mcpData,
     isLoading: isMcpLoading,
     mutateMcpServers,
-  } = useMcpServers();
+  } = useAdminMcpServers();
 
   // Modal management
   const authModal = useCreateModal();
@@ -82,7 +83,7 @@ export default function MCPPageContent() {
 
           await mutateMcpServers();
 
-          router.replace("/admin/actions/mcp");
+          router.replace(ADMIN_ROUTES.MCP_ACTIONS.path);
 
           // Automatically expand the tools for this server
           setServerToExpand(serverIdInt);

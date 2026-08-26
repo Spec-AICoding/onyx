@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Divider } from "@opal/components";
+import { Button, Divider, LineItemButton, Popover } from "@opal/components";
 import {
   SvgMoreHorizontal,
   SvgUsers,
@@ -10,15 +10,15 @@ import {
   SvgUserPlus,
   SvgUserX,
   SvgKey,
+  SvgUserManage,
 } from "@opal/icons";
 import { Disabled } from "@opal/core";
-import LineItem from "@/refresh-components/buttons/LineItem";
-import { Popover } from "@opal/components";
 import { Section } from "@/layouts/general-layouts";
 import Text from "@/refresh-components/texts/Text";
-import { UserStatus } from "@/lib/types";
-import { toast } from "@opal/layouts";
-import { approveRequest } from "./svc";
+import { AccountType, UserStatus } from "@/lib/types";
+import { ContentAction, toast } from "@opal/layouts";
+import { approveRequest, setUserAdminAccess } from "./svc";
+import { useCanManageGroups } from "@/lib/permissions/hooks";
 import EditUserModal from "./EditUserModal";
 import {
   CancelInviteModal,
@@ -57,6 +57,8 @@ export default function UserRowActions({
 }: UserRowActionsProps) {
   const [modal, setModal] = useState<Modal | null>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
+  // below Business the group editor is empty, so don't offer it
+  const canManageGroups = useCanManageGroups();
 
   const openModal = (type: Modal) => {
     setPopoverOpen(false);
@@ -70,6 +72,32 @@ export default function UserRowActions({
     onMutate();
   };
 
+  // the only edition-independent way to promote/demote; group editing is EE-only
+  const toggleAdminAccess = () => {
+    setPopoverOpen(false);
+    void (async () => {
+      try {
+        await setUserAdminAccess(user.email, !user.is_admin);
+        onMutate();
+        toast.success(
+          user.is_admin ? "Admin access removed" : "User is now an admin"
+        );
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "An error occurred");
+      }
+    })();
+  };
+
+  const adminAccessItem = user.account_type === AccountType.STANDARD && (
+    <LineItemButton
+      sizePreset="main-ui"
+      rounding={2}
+      icon={SvgUserManage}
+      onClick={toggleAdminAccess}
+      title={user.is_admin ? "Remove Admin Access" : "Make Admin"}
+    />
+  );
+
   // Status-aware action menus
   const actionButtons = (() => {
     // SCIM-managed users get limited actions — most changes would be
@@ -77,20 +105,30 @@ export default function UserRowActions({
     if (user.is_scim_synced) {
       return (
         <>
-          {user.id && (
-            <LineItem
+          {user.id && canManageGroups && (
+            <LineItemButton
+              sizePreset="main-ui"
+              rounding={2}
               icon={SvgUsers}
               onClick={() => openModal(Modal.EDIT_GROUPS)}
-            >
-              Groups &amp; Roles
-            </LineItem>
+              title="Groups & Roles"
+            />
           )}
+          {/* Shown so a SCIM admin can see the action exists, but it never
+              fires — so it is a label, not a button. Padding matches
+              LineItemButton so it lines up with the rows above. */}
           <Disabled disabled>
-            <LineItem danger icon={SvgUserX}>
-              Deactivate User
-            </LineItem>
+            <div className="w-full p-1.5">
+              <ContentAction
+                sizePreset="main-ui"
+                padding={0.5}
+                color="danger"
+                icon={SvgUserX}
+                title="Deactivate User"
+              />
+            </div>
           </Disabled>
-          <Divider paddingPerpendicular="md" />
+          <Divider paddingPerpendicular={4} />
           <Text as="p" secondaryBody text03 className="px-3 py-1">
             This is a synced SCIM user managed by your identity provider.
           </Text>
@@ -101,18 +139,21 @@ export default function UserRowActions({
     switch (user.status) {
       case UserStatus.INVITED:
         return (
-          <LineItem
-            danger
+          <LineItemButton
+            sizePreset="main-ui"
+            rounding={2}
+            color="danger"
             icon={SvgXCircle}
             onClick={() => openModal(Modal.CANCEL_INVITE)}
-          >
-            Cancel Invite
-          </LineItem>
+            title="Cancel Invite"
+          />
         );
 
       case UserStatus.REQUESTED:
         return (
-          <LineItem
+          <LineItemButton
+            sizePreset="main-ui"
+            rounding={2}
             icon={SvgUserCheck}
             onClick={() => {
               setPopoverOpen(false);
@@ -128,71 +169,79 @@ export default function UserRowActions({
                 }
               })();
             }}
-          >
-            Approve
-          </LineItem>
+            title="Approve"
+          />
         );
 
       case UserStatus.ACTIVE:
         return (
           <>
-            {user.id && (
-              <LineItem
+            {user.id && canManageGroups && (
+              <LineItemButton
+                sizePreset="main-ui"
+                rounding={2}
                 icon={SvgUsers}
                 onClick={() => openModal(Modal.EDIT_GROUPS)}
-              >
-                Groups &amp; Roles
-              </LineItem>
+                title="Groups & Roles"
+              />
             )}
-            <LineItem
+            {user.id && adminAccessItem}
+            <LineItemButton
+              sizePreset="main-ui"
+              rounding={2}
               icon={SvgKey}
               onClick={() => openModal(Modal.RESET_PASSWORD)}
-            >
-              Reset Password
-            </LineItem>
-            <Divider paddingPerpendicular="md" />
-            <LineItem
-              danger
+              title="Reset Password"
+            />
+            <Divider paddingPerpendicular={4} />
+            <LineItemButton
+              sizePreset="main-ui"
+              rounding={2}
+              color="danger"
               icon={SvgUserX}
               onClick={() => openModal(Modal.DEACTIVATE)}
-            >
-              Deactivate User
-            </LineItem>
+              title="Deactivate User"
+            />
           </>
         );
 
       case UserStatus.INACTIVE:
         return (
           <>
-            {user.id && (
-              <LineItem
+            {user.id && canManageGroups && (
+              <LineItemButton
+                sizePreset="main-ui"
+                rounding={2}
                 icon={SvgUsers}
                 onClick={() => openModal(Modal.EDIT_GROUPS)}
-              >
-                Groups &amp; Roles
-              </LineItem>
+                title="Groups & Roles"
+              />
             )}
-            <LineItem
+            {user.id && adminAccessItem}
+            <LineItemButton
+              sizePreset="main-ui"
+              rounding={2}
               icon={SvgKey}
               onClick={() => openModal(Modal.RESET_PASSWORD)}
-            >
-              Reset Password
-            </LineItem>
-            <Divider paddingPerpendicular="md" />
-            <LineItem
+              title="Reset Password"
+            />
+            <Divider paddingPerpendicular={4} />
+            <LineItemButton
+              sizePreset="main-ui"
+              rounding={2}
               icon={SvgUserPlus}
               onClick={() => openModal(Modal.ACTIVATE)}
-            >
-              Activate User
-            </LineItem>
-            <Divider paddingPerpendicular="md" />
-            <LineItem
-              danger
+              title="Activate User"
+            />
+            <Divider paddingPerpendicular={4} />
+            <LineItemButton
+              sizePreset="main-ui"
+              rounding={2}
+              color="danger"
               icon={SvgUserX}
               onClick={() => openModal(Modal.DELETE)}
-            >
-              Delete User
-            </LineItem>
+              title="Delete User"
+            />
           </>
         );
 
@@ -211,7 +260,7 @@ export default function UserRowActions({
         </Popover.Trigger>
         <Popover.Content align="end" width="sm">
           <Section
-            gap={0.5}
+            gap={2}
             height="auto"
             alignItems="stretch"
             justifyContent="start"

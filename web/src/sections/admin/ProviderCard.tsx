@@ -89,6 +89,10 @@ export default function ProviderCard({
   selectedLabel = "Current Default",
   "aria-label": ariaLabel,
 }: ProviderCardProps) {
+  // A name to select the card by — one that says which provider it is rather
+  // than what it looks like. Not an accessibility fix: the card is a roleless
+  // div with an onClick, so a label alone leaves it pointer-only.
+  const label = ariaLabel ?? title;
   const isDisconnected = status === "disconnected";
   const isConnected = status === "connected";
   const isSelected = status === "selected";
@@ -100,9 +104,9 @@ export default function ProviderCard({
     >
       <SelectCard
         state={STATUS_TO_STATE[status]}
-        padding="sm"
-        rounding="lg"
-        aria-label={ariaLabel}
+        padding={2}
+        rounding={4}
+        aria-label={label}
         onClick={
           isDisconnected && onConnect
             ? onConnect
@@ -119,7 +123,7 @@ export default function ProviderCard({
           icon={icon}
           title={title}
           description={description}
-          padding="lg"
+          padding={2}
           rightChildren={
             isDisconnected && onConnect ? (
               <Button
@@ -156,11 +160,7 @@ export default function ProviderCard({
                 ) : undefined}
                 {(onDisconnect || onEdit) && (
                   <div className="px-1 pb-1">
-                    <Section
-                      flexDirection="row"
-                      justifyContent="end"
-                      gap={0.25}
-                    >
+                    <Section flexDirection="row" justifyContent="end" gap={1}>
                       {onDisconnect && (
                         <Hoverable.Item
                           group="ProviderCard"

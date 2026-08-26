@@ -120,9 +120,9 @@ function OverrideForm({ existing, onDone }: OverrideFormProps) {
   }
 
   return (
-    <Card border="solid" rounding="lg">
+    <Card border="solid" rounding={4}>
       <GeneralLayouts.Section
-        gap={0.75}
+        gap={3}
         height="fit"
         alignItems="stretch"
         justifyContent="start"
@@ -248,7 +248,7 @@ function OverrideRow({ override }: OverrideRowProps) {
 
   return (
     <Hoverable.Root group="OverrideRow">
-      <Card border="solid" rounding="lg" padding="sm">
+      <Card border="solid" rounding={4} padding={2}>
         <div className="flex flex-row items-center justify-between gap-2 p-2">
           <div className="flex flex-col gap-0.5 min-w-0">
             <Text font="main-ui-action" color="text-04" nowrap>
@@ -302,7 +302,7 @@ export default function CostOverridesPanel() {
 
   return (
     <GeneralLayouts.Section
-      gap={0.75}
+      gap={3}
       height="fit"
       alignItems="stretch"
       justifyContent="start"

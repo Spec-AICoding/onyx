@@ -7,17 +7,10 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from onyx.configs.constants import DocumentSource
+from onyx.connectors.capabilities import CredentialCapability
 from onyx.connectors.interfaces import BaseConnector
-
-
-class CredentialCapability(str, Enum):
-    """
-    User-visible capabilities a credential may or may not support for a source.
-    """
-
-    INDEXING = "indexing"
-    DOC_PERMISSION_SYNC = "doc_permission_sync"
-    EXTERNAL_GROUP_SYNC = "external_group_sync"
+from onyx.connectors.source_operations import SourceOperations
+from onyx.db.enums import CapabilityCheckTrigger
 
 
 class CapabilityCheckStatus(str, Enum):
@@ -44,17 +37,6 @@ class CapabilityVerdict(str, Enum):
     NOT_APPLICABLE = "not_applicable"
 
 
-class CapabilityCheckTrigger(str, Enum):
-    """What initiated a capability-check run."""
-
-    MANUAL = "manual"
-    CREDENTIAL_CREATED = "credential_created"
-    # Recorded from the blocking validation at cc-pair creation/swap time.
-    CC_PAIR_VALIDATION = "cc_pair_validation"
-    # Recorded from the blocking validation at indexing-run start.
-    INDEXING_ATTEMPT = "indexing_attempt"
-
-
 class CapabilityCheckContext(BaseModel):
     """Inputs available to a capability check at run time.
 
@@ -63,9 +45,14 @@ class CapabilityCheckContext(BaseModel):
     them. ``instantiation_error`` is set when connector construction failed for
     a supplied config; the runner surfaces it on instance-requiring checks
     instead of skipping them.
+
+    ``source_operations`` is the gateway migrated checks compose; it is None for
+    sources without one. ``connector`` serves the fallback path only: migrated
+    checks need no connector instance.
     """
 
-    # ``BaseConnector`` is not a pydantic type; validate by isinstance.
+    # ``BaseConnector`` and ``SourceOperations`` are not pydantic types;
+    # validate by isinstance.
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     source: DocumentSource
@@ -73,6 +60,7 @@ class CapabilityCheckContext(BaseModel):
     connector: BaseConnector | None = None
     connector_specific_config: dict[str, Any] | None = None
     instantiation_error: Exception | None = None
+    source_operations: SourceOperations | None = None
 
 
 class CapabilityCheck(ABC):

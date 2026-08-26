@@ -5,7 +5,19 @@ import useSWR, { mutate } from "swr";
 import { errorHandlingFetcher } from "@/lib/fetcher";
 import { SWR_KEYS } from "@/lib/swr-keys";
 import { SettingsLayouts, toast } from "@opal/layouts";
-import { Button, MessageCard, Text } from "@opal/components";
+import {
+  BasicModalFooter,
+  Button,
+  Code,
+  LineItemButton,
+  MessageCard,
+  Modal,
+  Popover,
+  PopoverMenu,
+  Table,
+  Tag,
+  Text,
+} from "@opal/components";
 import { Content, IllustrationContent } from "@opal/layouts";
 import SvgNoResult from "@opal/illustrations/no-result";
 import {
@@ -19,14 +31,8 @@ import {
   SvgUsers,
   SvgSimpleLoader,
 } from "@opal/icons";
-import { USER_ROLE_LABELS, UserRole } from "@/lib/types";
 import { ADMIN_ROUTES } from "@/lib/admin-routes";
-import InputSelect from "@/refresh-components/inputs/InputSelect";
 import AdminListHeader from "@/sections/admin/AdminListHeader";
-import { BasicModalFooter, Modal } from "@opal/components";
-import { Code } from "@opal/components";
-import { Popover, PopoverMenu } from "@opal/components";
-import LineItem from "@/refresh-components/buttons/LineItem";
 import { ConfirmationModalLayout } from "@opal/layouts";
 import { markdown } from "@opal/utils";
 
@@ -38,13 +44,9 @@ import {
   updateApiKey,
 } from "@/views/admin/ServiceAccountsPage/svc";
 import type { APIKey } from "@/views/admin/ServiceAccountsPage/interfaces";
-import {
-  DISCORD_SERVICE_API_KEY_NAME,
-  SERVICE_ACCOUNT_ROLE_OPTIONS,
-} from "@/views/admin/ServiceAccountsPage/interfaces";
+import { DISCORD_SERVICE_API_KEY_NAME } from "@/views/admin/ServiceAccountsPage/interfaces";
 import ApiKeyFormModal from "@/views/admin/ServiceAccountsPage/ApiKeyFormModal";
 import EditServiceAccountModal from "@/views/admin/ServiceAccountsPage/EditServiceAccountModal";
-import { Table } from "@opal/components";
 import { createTableColumns } from "@opal/components/table/columns";
 import { Section } from "@/layouts/general-layouts";
 
@@ -90,24 +92,6 @@ export default function ServiceAccountsPage() {
       (key.api_key_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
       key.api_key_display.toLowerCase().includes(search.toLowerCase())
   );
-
-  const handleRoleChange = async (apiKey: APIKey, newRole: UserRole) => {
-    try {
-      const response = await updateApiKey(apiKey.api_key_id, {
-        name: apiKey.api_key_name ?? undefined,
-        role: newRole,
-      });
-      if (!response.ok) {
-        const errorMsg = await response.text();
-        toast.error(`Failed to update role: ${errorMsg}`);
-        return;
-      }
-      mutate(API_KEY_SWR_KEY);
-      toast.success("Role updated.");
-    } catch {
-      toast.error("Failed to update role.");
-    }
-  };
 
   const handleRegenerate = async (apiKey: APIKey) => {
     try {
@@ -168,29 +152,30 @@ export default function ServiceAccountsPage() {
         ),
       }),
       tc.displayColumn({
-        id: "account_type",
-        header: "Account Type",
+        id: "groups",
+        header: "Groups",
         width: { weight: 25, minWidth: 160 },
-        cell: (row) => (
-          <InputSelect
-            value={row.api_key_role}
-            onValueChange={(value) => handleRoleChange(row, value as UserRole)}
-          >
-            <InputSelect.Trigger />
-            <InputSelect.Content>
-              {SERVICE_ACCOUNT_ROLE_OPTIONS.map((opt) => (
-                <InputSelect.Item
-                  key={opt.role}
-                  value={opt.role.toString()}
-                  icon={opt.icon}
-                  description={opt.description}
-                >
-                  {USER_ROLE_LABELS[opt.role]}
-                </InputSelect.Item>
+        cell: (row) => {
+          const groups = row.groups ?? [];
+          if (groups.length === 0) {
+            return (
+              <Text font="secondary-body" color="text-03">
+                —
+              </Text>
+            );
+          }
+          const maxVisible = 2;
+          const visible = groups.slice(0, maxVisible);
+          const overflow = groups.length - maxVisible;
+          return (
+            <div className="flex items-center gap-1 overflow-hidden flex-nowrap min-w-0">
+              {visible.map((g) => (
+                <Tag key={g.id} title={g.name} size="md" />
               ))}
-            </InputSelect.Content>
-          </InputSelect>
-        ),
+              {overflow > 0 && <Tag title={`+${overflow}`} size="md" />}
+            </div>
+          );
+        },
       }),
       tc.actions({
         cell: (row) => (
@@ -211,28 +196,31 @@ export default function ServiceAccountsPage() {
               </Popover.Trigger>
               <Popover.Content side="bottom" align="end" width="md">
                 <PopoverMenu>
-                  <LineItem
+                  <LineItemButton
+                    sizePreset="main-ui"
+                    rounding={2}
                     icon={SvgUsers}
                     onClick={() => setGroupsRolesTarget(row)}
-                  >
-                    Groups &amp; Roles
-                  </LineItem>
-                  <LineItem
+                    title="Groups"
+                  />
+                  <LineItemButton
+                    sizePreset="main-ui"
+                    rounding={2}
                     icon={SvgUserEdit}
                     onClick={() => {
                       setSelectedApiKey(row);
                       setShowCreateUpdateForm(true);
                     }}
-                  >
-                    Edit Account
-                  </LineItem>
-                  <LineItem
+                    title="Edit Account"
+                  />
+                  <LineItemButton
+                    sizePreset="main-ui"
+                    rounding={2}
                     icon={SvgTrash}
-                    danger
+                    color="danger"
                     onClick={() => setDeleteTarget(row)}
-                  >
-                    Delete Account
-                  </LineItem>
+                    title="Delete Account"
+                  />
                 </PopoverMenu>
               </Popover.Content>
             </Popover>
@@ -444,7 +432,7 @@ export default function ServiceAccountsPage() {
             </Button>
           }
         >
-          <Section alignItems="start" gap={0.5}>
+          <Section alignItems="start" gap={2}>
             <Text as="p" color="text-03">
               {markdown(
                 `Any application using the API key of account *${

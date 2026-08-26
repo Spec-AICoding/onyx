@@ -1,6 +1,6 @@
 "use client";
 
-import { ToolSnapshot } from "@/lib/tools/interfaces";
+import { ToolSnapshot } from "@/lib/tools/types";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCreateModal } from "@opal/components";
 import OpenAPIAuthenticationModal, {
@@ -12,8 +12,8 @@ import AdminListHeader from "@/sections/admin/AdminListHeader";
 import { toast } from "@opal/layouts";
 import OpenApiActionCard from "./OpenApiActionCard";
 import { createOAuthConfig, updateOAuthConfig } from "@/lib/oauth/api";
-import { updateCustomTool, deleteCustomTool } from "@/lib/tools/openApiService";
-import { updateToolStatus } from "@/lib/tools/mcpService";
+import { updateCustomTool, deleteCustomTool } from "@/lib/tools/svc";
+import { updateToolStatus } from "@/lib/tools/svc";
 import DisconnectEntityModal from "./modals/DisconnectEntityModal";
 import ActionCardSkeleton from "./skeleton/ActionCardSkeleton";
 import useOpenApiTools from "@/hooks/useOpenApiTools";
@@ -376,7 +376,9 @@ export default function OpenApiPageContent() {
                 onManage={handleManageTool}
                 onDelete={handleDeleteTool}
                 onRename={handleRenameTool}
-                mutateOpenApiTools={mutateOpenApiTools}
+                mutateOpenApiTools={async () => {
+                  await mutateOpenApiTools();
+                }}
                 onOpenDisconnectModal={handleOpenDisconnectModal}
               />
             ))

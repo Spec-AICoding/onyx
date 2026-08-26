@@ -5,8 +5,7 @@ import { markdown } from "@opal/utils";
 import { Section } from "@/layouts/general-layouts";
 import { Content, InputErrorText, InputVertical, toast } from "@opal/layouts";
 import Card from "@/refresh-components/cards/Card";
-import Button from "@/refresh-components/buttons/Button";
-import { Button as OpalButton, MessageCard } from "@opal/components";
+import { Button, MessageCard } from "@opal/components";
 import Text from "@/refresh-components/texts/Text";
 import InfoBlock from "@/refresh-components/messages/InfoBlock";
 import InputNumber from "@/refresh-components/inputs/InputNumber";
@@ -299,7 +298,7 @@ function SubscriptionCard({
         alignItems="start"
         height="auto"
       >
-        <Section gap={0.25} alignItems="start" height="auto" width="auto">
+        <Section gap={1} alignItems="start" height="auto" width="auto">
           <PlanIcon className="w-5 h-5" />
           <Text headingH3Muted text04>
             {planName}
@@ -310,7 +309,7 @@ function SubscriptionCard({
         </Section>
         <Section
           flexDirection="column"
-          gap={0.25}
+          gap={1}
           alignItems="end"
           height="auto"
           width="fit"
@@ -328,57 +327,54 @@ function SubscriptionCard({
               to make changes.
             </Text>
           ) : disabled ? (
-            <OpalButton
+            <Button
               disabled={isReconnecting}
               prominence="secondary"
               onClick={handleReconnect}
               rightIcon={SvgArrowRight}
             >
               {isReconnecting ? "Connecting..." : "Connect to Stripe"}
-            </OpalButton>
+            </Button>
           ) : (
             <Section
               flexDirection="row"
-              gap={0.5}
+              gap={2}
               alignItems="end"
               height="auto"
               width="auto"
             >
               {canEndTrialEarly && (
-                <OpalButton
+                <Button
                   disabled={isEndingTrial}
                   onClick={handleEndTrial}
                   rightIcon={SvgArrowRight}
                 >
                   {isEndingTrial ? "Upgrading..." : "Upgrade now"}
-                </OpalButton>
+                </Button>
               )}
               {/* Cloud has no local license to pull. Self-hosted refreshes
                   itself only inside LICENSE_RECLAIM_WINDOW, so a change made
                   earlier in the period needs a manual pull. */}
               {!NEXT_PUBLIC_CLOUD_ENABLED && (
-                <OpalButton
+                <Button
                   disabled={isSyncing}
                   prominence="secondary"
                   onClick={handleSyncLicense}
                 >
                   {isSyncing ? "Syncing..." : "Sync License"}
-                </OpalButton>
+                </Button>
               )}
-              <OpalButton
+              <Button
                 prominence={canEndTrialEarly ? "secondary" : "primary"}
                 onClick={handleManagePlan}
                 rightIcon={SvgExternalLink}
               >
                 Manage Plan
-              </OpalButton>
+              </Button>
             </Section>
           )}
-          {/* TODO(@raunakab): migrate to opal Button once className/iconClassName is resolved */}
-          <Button tertiary onClick={onViewPlans} className="billing-text-link">
-            <Text secondaryBody text03>
-              View Plan Details
-            </Text>
+          <Button prominence="tertiary" onClick={onViewPlans}>
+            View Plan Details
           </Button>
         </Section>
       </Section>
@@ -484,7 +480,7 @@ function SeatsCard({
           flexDirection="row"
           justifyContent="between"
           alignItems="start"
-          padding={1}
+          padding={4}
           height="auto"
         >
           <Content
@@ -493,21 +489,21 @@ function SeatsCard({
             sizePreset="main-content"
             variant="section"
           />
-          <OpalButton
+          <Button
             disabled={isSubmitting}
             prominence="secondary"
             onClick={handleCancel}
           >
             Cancel
-          </OpalButton>
+          </Button>
         </Section>
 
         <div className="billing-content-area">
           <Section
             flexDirection="column"
             alignItems="stretch"
-            gap={0.25}
-            padding={1}
+            gap={1}
+            padding={4}
             height="auto"
           >
             <InputVertical title="Seats" withLabel>
@@ -547,7 +543,7 @@ function SeatsCard({
           flexDirection="row"
           alignItems="center"
           justifyContent="between"
-          padding={1}
+          padding={4}
           height="auto"
         >
           {isAdding ? (
@@ -574,14 +570,14 @@ function SeatsCard({
               No changes to your billing.
             </Text>
           )}
-          <OpalButton
+          <Button
             disabled={
               isSubmitting || newSeatCount === totalSeats || isBelowMinimum
             }
             onClick={handleConfirm}
           >
             {isSubmitting ? "Saving..." : "Confirm Change"}
-          </OpalButton>
+          </Button>
         </Section>
       </Card>
     );
@@ -595,7 +591,7 @@ function SeatsCard({
         alignItems="center"
         height="auto"
       >
-        <Section gap={0.25} alignItems="start" height="auto" width="auto">
+        <Section gap={1} alignItems="start" height="auto" width="auto">
           <Text mainContentMuted text04>
             {totalSeats} Seats
           </Text>
@@ -606,27 +602,27 @@ function SeatsCard({
         </Section>
         <Section
           flexDirection="row"
-          gap={0.5}
+          gap={2}
           justifyContent="end"
           height="auto"
           width="auto"
         >
-          <OpalButton
+          <Button
             prominence="tertiary"
             href="/admin/users"
             icon={SvgExternalLink}
           >
             View Users
-          </OpalButton>
+          </Button>
           {!hideUpdateSeats && (
-            <OpalButton
+            <Button
               disabled={isLoadingUsers || disabled || !billing}
               prominence="secondary"
               onClick={handleStartEdit}
               icon={SvgPlus}
             >
               Update Seats
-            </OpalButton>
+            </Button>
           )}
         </Section>
       </Section>
@@ -660,12 +656,7 @@ function PaymentSection({ billing }: { billing: BillingInformation }) {
     <div className="billing-payment-section">
       <Section alignItems="start" height="auto" width="full">
         <Text mainContentEmphasis>Payment</Text>
-        <Section
-          flexDirection="row"
-          gap={0.5}
-          alignItems="stretch"
-          height="auto"
-        >
+        <Section flexDirection="row" gap={2} alignItems="stretch" height="auto">
           <Card className="billing-payment-card">
             <Section
               flexDirection="row"
@@ -678,13 +669,13 @@ function PaymentSection({ billing }: { billing: BillingInformation }) {
                 title="Visa ending in 1234"
                 description="Payment method"
               />
-              <OpalButton
+              <Button
                 prominence="tertiary"
                 onClick={handleOpenPortal}
                 rightIcon={SvgExternalLink}
               >
                 Update
-              </OpalButton>
+              </Button>
             </Section>
           </Card>
           {lastPaymentDate && (
@@ -700,13 +691,13 @@ function PaymentSection({ billing }: { billing: BillingInformation }) {
                   title={lastPaymentDate}
                   description="Last payment"
                 />
-                <OpalButton
+                <Button
                   prominence="tertiary"
                   onClick={handleOpenPortal}
                   rightIcon={SvgExternalLink}
                 >
                   View Invoice
-                </OpalButton>
+                </Button>
               </Section>
             </Card>
           )}
@@ -748,7 +739,7 @@ export default function BillingDetailsView({
     isAirGapped || hasStripeError || isManualLicenseOnly;
 
   return (
-    <Section gap={1} height="auto" width="full">
+    <Section gap={4} height="auto" width="full">
       {/* Renewal fetched on arrival while expired. The page renders regardless:
           billing is the one route a lapsed instance must always reach. */}
       {isGraceSyncing && (

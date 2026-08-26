@@ -7,7 +7,6 @@ import { deleteChatSession, renameChatSession } from "@/app/app/services/lib";
 import { ChatSession } from "@/app/app/interfaces";
 import { ConfirmationModalLayout } from "@opal/layouts";
 import { noProp } from "@/lib/utils";
-import { cn } from "@opal/utils";
 import { Popover, PopoverMenu } from "@opal/components";
 import { useAppRouter } from "@/hooks/appNavigation";
 import type { Project } from "@/lib/projects/types";
@@ -15,13 +14,14 @@ import {
   removeChatSessionFromProject,
   createProject as createProjectService,
 } from "@/lib/projects/svc";
-import { useProjectsContext } from "@/providers/ProjectsContext";
-import MoveCustomAgentChatModal from "@/sections/modals/MoveCustomAgentChatModal";
+import { useProjectsContext } from "@/lib/projects/providers";
+import { MoveCustomAgentChatModal } from "@/lib/agents/components";
 import { UNNAMED_CHAT } from "@/lib/constants";
 import ShareChatSessionModal from "@/sections/modals/ShareChatSessionModal";
 import { Button, LineItemButton, SidebarTab } from "@opal/components";
-import IconButton from "@/refresh-components/buttons/IconButton";
 import { InputTypeIn } from "@opal/components";
+import { Hoverable } from "@opal/core";
+import useFocusOnMount from "@opal/hooks/useFocusOnMount";
 import { DRAG_TYPES, LOCAL_STORAGE_KEYS } from "@/lib/sidebar/constants";
 import {
   shouldShowMoveModal,
@@ -41,7 +41,7 @@ import {
   SvgTrash,
 } from "@opal/icons";
 import useOnMount from "@/hooks/useOnMount";
-import { useAgents, usePinnedAgents } from "@/lib/agents/hooks";
+import { usePinChatAgent } from "@/lib/agents/hooks";
 
 export interface PopoverSearchInputProps {
   setShowMoveOptions: (show: boolean) => void;
@@ -53,6 +53,7 @@ export function PopoverSearchInput({
   onSearch,
 }: PopoverSearchInputProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const focusOnMount = useFocusOnMount<HTMLInputElement>();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -87,7 +88,7 @@ export function PopoverSearchInput({
         placeholder="Search Projects"
         onClick={noProp()}
         variant="internal"
-        autoFocus
+        ref={focusOnMount}
       />
     </div>
   );
@@ -128,8 +129,7 @@ const ChatButton = memo(
       currentProjectId,
       createProject,
     } = useProjectsContext();
-    const { agents } = useAgents();
-    const { pinnedAgents, togglePinnedAgent } = usePinnedAgents();
+    const pinChatAgent = usePinChatAgent();
     const [popoverOpen, setPopoverOpen] = useState(false);
     const [pendingMoveProjectId, setPendingMoveProjectId] = useState<
       number | null
@@ -141,16 +141,18 @@ const ChatButton = memo(
 
     // Drag and drop setup for chat sessions
     const dragId = `${DRAG_TYPES.CHAT}-${chatSession.id}`;
-    const { attributes, listeners, setNodeRef, transform, isDragging } =
-      useDraggable({
-        id: dragId,
-        data: {
-          type: DRAG_TYPES.CHAT,
-          chatSession,
-          projectId: project?.id,
-        },
-        disabled: !draggable || renaming,
-      });
+    // `attributes` is intentionally dropped: it turns the wrapper into a
+    // focusable role="button", which adds a second tab stop per row and lets
+    // Enter/Space start a keyboard drag that looks like the chat is disabled.
+    const { listeners, setNodeRef, transform, isDragging } = useDraggable({
+      id: dragId,
+      data: {
+        type: DRAG_TYPES.CHAT,
+        chatSession,
+        projectId: project?.id,
+      },
+      disabled: !draggable || renaming,
+    });
 
     // Sync local name state when chatSession.name changes (e.g., after auto-naming)
     useEffect(() => {
@@ -191,7 +193,7 @@ const ChatButton = memo(
           <LineItemButton
             key="share"
             sizePreset="main-ui"
-            rounding="sm"
+            rounding={2}
             icon={SvgShare}
             title="Share"
             onClick={noProp(() => setShowShareModal(true))}
@@ -199,7 +201,7 @@ const ChatButton = memo(
           <LineItemButton
             key="rename"
             sizePreset="main-ui"
-            rounding="sm"
+            rounding={2}
             icon={SvgEdit}
             title="Rename"
             onClick={noProp(() => setRenaming(true))}
@@ -207,7 +209,7 @@ const ChatButton = memo(
           <LineItemButton
             key="move"
             sizePreset="main-ui"
-            rounding="sm"
+            rounding={2}
             icon={SvgFolderIn}
             title="Move to Project"
             onClick={noProp(() => setShowMoveOptions(true))}
@@ -216,7 +218,7 @@ const ChatButton = memo(
             <LineItemButton
               key="remove"
               sizePreset="main-ui"
-              rounding="sm"
+              rounding={2}
               icon={SvgFolder}
               title={`Remove from ${project.name}`}
               onClick={noProp(() => handleRemoveFromProject())}
@@ -226,7 +228,7 @@ const ChatButton = memo(
           <LineItemButton
             key="delete"
             sizePreset="main-ui"
-            rounding="sm"
+            rounding={2}
             color="danger"
             icon={SvgTrash}
             title="Delete"
@@ -249,7 +251,7 @@ const ChatButton = memo(
             <LineItemButton
               key={targetProject.id}
               sizePreset="main-ui"
-              rounding="sm"
+              rounding={2}
               icon={SvgFolder}
               title={targetProject.name}
               onClick={noProp(() => handleChatMove(targetProject))}
@@ -262,7 +264,7 @@ const ChatButton = memo(
                 <LineItemButton
                   key="create-new"
                   sizePreset="main-ui"
-                  rounding="sm"
+                  rounding={2}
                   icon={SvgFolderPlus}
                   title={`Create ${searchTerm.trim()}`}
                   onClick={noProp(() =>
@@ -289,13 +291,7 @@ const ChatButton = memo(
 
     // Pin the chat's agent when clicking on the conversation
     async function handleClick() {
-      const agent = agents.find((a) => a.id === chatSession.persona_id);
-      if (agent) {
-        const isAlreadyPinned = pinnedAgents.some((a) => a.id === agent.id);
-        if (!isAlreadyPinned) {
-          await togglePinnedAgent(agent, true);
-        }
-      }
+      await pinChatAgent(chatSession);
     }
 
     async function handleRename(newName: string) {
@@ -402,20 +398,27 @@ const ChatButton = memo(
     const rightMenu = (
       <>
         <Popover.Trigger asChild onClick={noProp()}>
-          <div>
-            {/* TODO(@raunakab): migrate to opal Button once className/iconClassName is resolved */}
-            <IconButton
-              icon={SvgMoreHorizontal}
-              className={cn(
-                !popoverOpen && "hidden",
-                !renaming && "group-hover/SidebarTab:flex"
-              )}
-              transient={popoverOpen}
-              internal
-            />
+          <div data-testid="ChatButton/options">
+            {/* While renaming the row is an input, so the menu stays away unless
+                its own popover is already open. */}
+            {(!renaming || popoverOpen) && (
+              <Hoverable.Item group="ChatButton">
+                <Button
+                  icon={SvgMoreHorizontal}
+                  prominence="internal"
+                  size="sm"
+                  interaction={popoverOpen ? "hover" : "rest"}
+                />
+              </Hoverable.Item>
+            )}
           </div>
         </Popover.Trigger>
-        <Popover.Content side="right" align="start" width="md">
+        <Popover.Content
+          data-testid="ChatButton/popover"
+          side="right"
+          align="start"
+          width="md"
+        >
           <PopoverMenu>{popoverItems}</PopoverMenu>
         </Popover.Content>
       </>
@@ -432,23 +435,34 @@ const ChatButton = memo(
         }}
       >
         <Popover.Anchor>
-          <SidebarTab
-            href={isDragging ? undefined : `/app?chatId=${chatSession.id}`}
-            onClick={handleClick}
-            selected={active}
-            rightChildren={rightMenu}
-            nested={!!project}
+          <Hoverable.Root
+            group="ChatButton"
+            data-testid="ChatButton"
+            interaction={popoverOpen ? "hover" : "rest"}
           >
-            {renaming ? (
-              <ButtonRenaming
-                initialName={chatSession.name}
-                onRename={handleRename}
-                onClose={() => setRenaming(false)}
-              />
-            ) : (
-              displayName
-            )}
-          </SidebarTab>
+            <SidebarTab
+              /* While renaming, drop the click target so the input stays usable. */
+              href={
+                isDragging || renaming
+                  ? undefined
+                  : `/app?chatId=${chatSession.id}`
+              }
+              onClick={renaming ? undefined : handleClick}
+              selected={active}
+              rightChildren={rightMenu}
+              nested={!!project}
+            >
+              {renaming ? (
+                <ButtonRenaming
+                  initialName={chatSession.name}
+                  onRename={handleRename}
+                  onClose={() => setRenaming(false)}
+                />
+              ) : (
+                displayName
+              )}
+            </SidebarTab>
+          </Hoverable.Root>
         </Popover.Anchor>
       </Popover>
     );
@@ -523,7 +537,6 @@ const ChatButton = memo(
                 : undefined,
               opacity: isDragging ? 0.5 : 1,
             }}
-            {...(mounted ? attributes : {})}
             {...(mounted ? listeners : {})}
           >
             {popover}
