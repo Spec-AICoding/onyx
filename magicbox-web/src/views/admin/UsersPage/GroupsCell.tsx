@@ -12,6 +12,7 @@ import { SvgEdit } from "@opal/icons";
 import { Button, Tag } from "@opal/components";
 import Text from "@/refresh-components/texts/Text";
 import { Tooltip } from "@opal/components";
+import { useCanManageGroups } from "@/lib/permissions/hooks";
 import EditUserModal from "./EditUserModal";
 import type { UserRow, UserGroupInfo } from "./interfaces";
 
@@ -38,6 +39,9 @@ export default function GroupsCell({
   const [showModal, setShowModal] = useState(false);
   const [visibleCount, setVisibleCount] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // below Business the editor is empty, so show pills but don't open it
+  const canManageGroups = useCanManageGroups();
+  const editable = Boolean(user.id) && canManageGroups;
 
   const computeVisibleCount = useCallback(() => {
     const container = containerRef.current;
@@ -139,9 +143,9 @@ export default function GroupsCell({
       <Hoverable.Root group="tags">
         <div
           className={`relative flex justify-between items-center w-full min-w-0 ${
-            user.id ? "cursor-pointer" : ""
+            editable ? "cursor-pointer" : ""
           }`}
-          onClick={user.id ? () => setShowModal(true) : undefined}
+          onClick={editable ? () => setShowModal(true) : undefined}
         >
           {groups.length === 0 ? (
             <div
@@ -167,7 +171,7 @@ export default function GroupsCell({
               </div>
             </Tooltip>
           )}
-          {user.id && (
+          {editable && (
             <Hoverable.Item group="tags" variant="appear-on-hover">
               <Button
                 icon={SvgEdit}

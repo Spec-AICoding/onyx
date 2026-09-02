@@ -2,6 +2,8 @@ export interface SyncFileItem {
   // id 与 file_id 同值（分页 hook 泛型约束需要 id 字段）
   id: string;
   file_id: string;
+  // 所属连接器实例（按类型聚合检索时区分行归属）
+  cc_pair_id: number;
   display_name: string | null;
   document_count: number | null;
   created_at: string | null;
@@ -53,6 +55,8 @@ export const KG_STAGE_LABELS: Record<
 
 export interface SyncAttemptItem {
   id: number; // index_attempt.id（分页 hook 泛型约束需要 id 字段）
+  // 所属连接器实例（按类型聚合检索时下钻文件用）
+  cc_pair_id: number;
   status:
     | "not_started"
     | "in_progress"

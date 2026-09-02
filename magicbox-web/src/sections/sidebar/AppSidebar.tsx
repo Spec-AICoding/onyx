@@ -45,6 +45,7 @@ import type { Project } from "@/lib/projects/types";
 import { SidebarLayouts, useSidebarState } from "@opal/layouts";
 import { renderSidebarLogo } from "@/lib/sidebar/utils";
 import { useShowLogoWhenFolded } from "@/lib/sidebar/hooks";
+import { getFirstPermittedAdminRoute } from "@/lib/permissions";
 import { Button as OpalButton } from "@opal/components";
 import { cn } from "@opal/utils";
 import { DRAG_TYPES, LOCAL_STORAGE_KEYS } from "@/lib/sidebar/constants";
@@ -468,7 +469,7 @@ export default function AppSidebar() {
     ]
   );
 
-  const { isAdmin, isCurator, user } = useUser();
+  const { isAdmin, user, hasAdminAccess, adminCapabilities } = useUser();
   const activeSidebarTab = useAppFocus();
   const createProjectModal = useCreateModal();
   const showLogoWhenFolded = useShowLogoWhenFolded();
@@ -574,17 +575,17 @@ export default function AppSidebar() {
   const settingsButton = useMemo(
     () => (
       <div>
-        {(isAdmin || isCurator) && (
+        {hasAdminAccess && (
           <SidebarTab
             href={
-              isCurator
-                ? "/admin/agents"
-                : "/admin/configuration/language-models"
+              isAdmin
+                ? "/admin/configuration/language-models"
+                : getFirstPermittedAdminRoute(adminCapabilities)
             }
             icon={SvgSettings}
             folded={folded}
           >
-            {isAdmin ? "Admin Panel" : "Curator Panel"}
+            Admin Panel
           </SidebarTab>
         )}
         <AccountPopover
@@ -595,7 +596,14 @@ export default function AppSidebar() {
         />
       </div>
     ),
-    [folded, isAdmin, isCurator, handleShowBuildIntro, isOnyxCraftEnabled]
+    [
+      folded,
+      isAdmin,
+      hasAdminAccess,
+      adminCapabilities,
+      handleShowBuildIntro,
+      isOnyxCraftEnabled,
+    ]
   );
 
   return (

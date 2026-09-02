@@ -1,9 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { Route } from "next";
 import useSWR from "swr";
 
 import {
+  Button,
   createTableColumns,
   EmptyMessageCard,
   MessageCard,
@@ -35,20 +38,16 @@ const ITEMS_PER_PAGE = 10;
 const PAGES_PER_BATCH = 3;
 
 const SELECT_CONNECTOR_PROMPT =
-  "请先选择连接器类型与连接器，再查看对应连接器同步过来的任务与批次文件。";
-
-/** metadata 摘要：取前 3 个键值对，逗号分隔，截断 100 字符。 */
-function formatMetadataSummary(metadata: Record<string, unknown>): string {
-  return Object.entries(metadata)
-    .slice(0, 3)
-    .map(([key, value]) => `${key}: ${String(value)}`)
-    .join(" · ")
-    .slice(0, 100);
-}
+  "请选择连接器类型（可仅选类型）或连接器实例，点击「检索」查看对应的同步任务与批次文件；选择连接器实例后，「图谱分析」可跳转知识图谱按该实例条件分析。";
 
 export function SyncFilesView() {
   const [selectedCcPairId, setSelectedCcPairId] = useState<number | null>(null);
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
+  // 点击「检索」时才提交的条件；下拉切换本身不触发任何请求
+  const [searchState, setSearchState] = useState<{
+    source: string | null;
+    ccPairId: number | null;
+  } | null>(null);
 
   const connectorStatusResult = useConnectorStatus();
   const allConnectors = connectorStatusResult.data ?? [];
@@ -71,6 +70,25 @@ export function SyncFilesView() {
         : allConnectors.filter((c) => c.connector.source === selectedSource),
     [allConnectors, selectedSource]
   );
+
+  const router = useRouter();
+
+  // 当前选中的连接器实例：「图谱分析」跳转需要实例名与类型
+  const selectedConnector = useMemo(
+    () => allConnectors.find((c) => c.cc_pair_id === selectedCcPairId) ?? null,
+    [allConnectors, selectedCcPairId]
+  );
+
+  // 跳转知识图谱：深链预填 connector（图谱侧 Neo4j label 用大写）与
+  // connectorName（实例名）；图谱页自动按该条件检索，无需手动点「应用」
+  const handleGraphAnalysis = () => {
+    const params = new URLSearchParams();
+    // 未显式选类型时从实例反查类型，保证图谱页级联下拉可正常预填
+    const source = selectedSource ?? selectedConnector?.connector.source ?? null;
+    if (source) params.set("connector", source.toUpperCase());
+    if (selectedConnector) params.set("connectorName", selectedConnector.name);
+    router.push(`/admin/rag?${params.toString()}` as Route);
+  };
 
   const connectorOptions: StringOrNumberOption[] = useMemo(
     () =>
@@ -119,19 +137,38 @@ export function SyncFilesView() {
                 }
               />
             </div>
+            <Button
+              disabled={selectedSource === null && selectedCcPairId === null}
+              onClick={() =>
+                setSearchState({
+                  source: selectedSource,
+                  ccPairId: selectedCcPairId,
+                })
+              }
+            >
+              检索
+            </Button>
+            <Button
+              disabled={selectedConnector === null}
+              tooltip={selectedConnector === null ? "请先选择连接器实例" : undefined}
+              onClick={handleGraphAnalysis}
+            >
+              图谱分析
+            </Button>
           </div>
 
-          {selectedCcPairId === null ? (
+          {searchState === null ? (
             <EmptyMessageCard
               sizePreset="main-ui"
-              title="未选择连接器"
+              title="未选择检索条件"
               description={SELECT_CONNECTOR_PROMPT}
             />
           ) : (
-            // key 确保切换连接器时重置任务列表分页与下钻状态
+            // key 确保切换检索条件时重置任务列表分页与下钻状态
             <SyncAttemptsView
-              key={selectedCcPairId}
-              ccPairId={selectedCcPairId}
+              key={`${searchState.source ?? "*"}-${searchState.ccPairId ?? "*"}`}
+              source={searchState.source}
+              ccPairId={searchState.ccPairId}
             />
           )}
         </Section>
@@ -142,7 +179,13 @@ export function SyncFilesView() {
 
 /* ── 任务列表（连接器 → 任务 → 文件） ─────────────────────────────────── */
 
-function SyncAttemptsView({ ccPairId }: { ccPairId: number }) {
+function SyncAttemptsView({
+  source,
+  ccPairId,
+}: {
+  source: string | null;
+  ccPairId: number | null;
+}) {
   const [selectedAttempt, setSelectedAttempt] =
     useState<SyncAttemptItem | null>(null);
 
@@ -162,7 +205,7 @@ function SyncAttemptsView({ ccPairId }: { ccPairId: number }) {
           </Text>
         </div>
         <SyncFilesTabBody
-          ccPairId={ccPairId}
+          ccPairId={selectedAttempt.cc_pair_id}
           indexAttemptId={selectedAttempt.id}
         />
       </Section>
@@ -171,6 +214,7 @@ function SyncAttemptsView({ ccPairId }: { ccPairId: number }) {
 
   return (
     <SyncAttemptsTable
+      source={source}
       ccPairId={ccPairId}
       onSelectAttempt={setSelectedAttempt}
     />
@@ -180,18 +224,29 @@ function SyncAttemptsView({ ccPairId }: { ccPairId: number }) {
 const syncAttemptsColumns = createTableColumns<SyncAttemptItem>();
 
 function SyncAttemptsTable({
+  source,
   ccPairId,
   onSelectAttempt,
 }: {
-  ccPairId: number;
+  source: string | null;
+  ccPairId: number | null;
   onSelectAttempt: (attempt: SyncAttemptItem) => void;
 }) {
   // filter 对象需保持引用稳定（usePaginatedFetch 以其为缓存重置依赖）
-  const filter = useMemo(() => ({ cc_pair_id: ccPairId }), [ccPairId]);
+  const filter = useMemo(
+    (): Record<string, string | number | boolean | string[] | Date> =>
+      ccPairId !== null
+        ? { cc_pair_id: ccPairId }
+        : { source: source ?? "" },
+    [ccPairId, source]
+  );
 
   const result = useSyncAttemptsPaginatedFetch<SyncAttemptItem>({
     endpoint: SWR_KEYS.syncAttempts,
-    swrProbeKey: SWR_KEYS.syncAttemptsProbe(ccPairId),
+    swrProbeKey:
+      ccPairId !== null
+        ? SWR_KEYS.syncAttemptsProbe(ccPairId)
+        : SWR_KEYS.syncAttemptsSourceProbe(source ?? ""),
     filter,
     itemsPerPage: ITEMS_PER_PAGE,
     pagesPerBatch: PAGES_PER_BATCH,
@@ -474,7 +529,7 @@ function SyncFilesTabBody({
         }
       />
       {expandedFileId !== null && (
-        <FileDocumentsPanel fileId={expandedFileId} />
+        <FileDocumentsPanel fileId={expandedFileId} ccPairId={ccPairId} />
       )}
       {result.totalPages > 1 && (
         <Section
@@ -612,10 +667,26 @@ export default SyncFilesView;
 
 /* ── 批次文件详情（读 MinIO 批次 JSON + document 表补充） ─────────────── */
 
-function FileDocumentsPanel({ fileId }: { fileId: string }) {
+function FileDocumentsPanel({
+  fileId,
+  ccPairId,
+}: {
+  fileId: string;
+  ccPairId: number;
+}) {
   const { data, isLoading, error } = useSWR<DocumentsResponse>(
     SWR_KEYS.syncFileDocuments(fileId),
     errorHandlingFetcher
+  );
+
+  // 「文档图谱」跳转需要实例名与类型；cc_pair_id 反查连接器
+  //（SWR 缓存与页面顶部的 useConnectorStatus 共享，不产生额外请求）
+  const connectorStatusResult = useConnectorStatus();
+  const connector = useMemo(
+    () =>
+      (connectorStatusResult.data ?? []).find((c) => c.cc_pair_id === ccPairId) ??
+      null,
+    [connectorStatusResult.data, ccPairId]
   );
 
   return (
@@ -646,7 +717,11 @@ function FileDocumentsPanel({ fileId }: { fileId: string }) {
         </Text>
       )}
       {data && data.items.length > 0 && (
-        <FileDocumentsTable items={data.items} />
+        <FileDocumentsTable
+          items={data.items}
+          connectorName={connector?.name ?? null}
+          connectorSource={connector?.connector.source ?? null}
+        />
       )}
     </Section>
   );
@@ -654,7 +729,16 @@ function FileDocumentsPanel({ fileId }: { fileId: string }) {
 
 const documentsColumns = createTableColumns<DocumentSummaryItem>();
 
-function FileDocumentsTable({ items }: { items: DocumentSummaryItem[] }) {
+function FileDocumentsTable({
+  items,
+  connectorName,
+  connectorSource,
+}: {
+  items: DocumentSummaryItem[];
+  connectorName: string | null;
+  connectorSource: string | null;
+}) {
+  const router = useRouter();
   const columns = useMemo(
     () => [
       documentsColumns.column("semantic_identifier", {
@@ -786,37 +870,31 @@ function FileDocumentsTable({ items }: { items: DocumentSummaryItem[] }) {
           );
         },
       }),
-      documentsColumns.column("text_preview", {
-        header: "内容预览",
-        weight: 16,
+      documentsColumns.column("id", {
+        header: "操作",
+        weight: 7,
         enableSorting: false,
-        cell: (value, row) => (
-          <div className="flex flex-col gap-0.5">
-            <Text
-              as="span"
-              font="secondary-body"
-              color="text-03"
-              maxLines={2}
-              title={value ?? undefined}
-            >
-              {value ?? "（无文本内容）"}
-            </Text>
-            {row.metadata && Object.keys(row.metadata).length > 0 && (
-              <Text
-                as="span"
-                font="secondary-body"
-                color="text-04"
-                maxLines={1}
-                title={JSON.stringify(row.metadata)}
-              >
-                {formatMetadataSummary(row.metadata)}
-              </Text>
-            )}
-          </div>
+        cell: (value) => (
+          <button
+            type="button"
+            className="cursor-pointer text-link hover:underline"
+            onClick={() => {
+              // doc = 文档 id（即图谱 biz_id）；深链预填后图谱页自动按文档检索
+              const params = new URLSearchParams();
+              if (connectorSource) {
+                params.set("connector", connectorSource.toUpperCase());
+              }
+              if (connectorName) params.set("connectorName", connectorName);
+              params.set("doc", String(value));
+              router.push(`/admin/rag?${params.toString()}` as Route);
+            }}
+          >
+            文档图谱
+          </button>
         ),
       }),
     ],
-    []
+    [connectorName, connectorSource, router]
   );
 
   return (

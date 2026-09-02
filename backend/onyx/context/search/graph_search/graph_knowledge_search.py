@@ -1,4 +1,5 @@
-import re
+import hashlib
+import json
 from datetime import datetime
 from typing import Any
 
@@ -7,6 +8,7 @@ import httpx
 from onyx.configs.app_configs import (
     GRAPH_API_AUTH_TOKEN,
     GRAPH_API_QUERY_MODE,
+    GRAPH_API_SCORE_WEIGHT,
     GRAPH_API_TOP_K,
     GRAPH_API_URL,
 )
@@ -16,30 +18,94 @@ from onyx.utils.logger import setup_logger
 
 logger = setup_logger()
 
-# Pattern to parse chunk_id: "doc-{document_id}-chunk-{chunk_num}"
-_CHUNK_ID_PATTERN = re.compile(r"^(doc-.+)-chunk-(\d+)$")
+# Rank-based score mapping for graph chunks. The graph API's raw rerank
+# scores (~0.001-0.01) are not comparable with the vector similarity scores
+# (~0.2-0.8) of the regular retrieval channel, so a chunk's rank within the
+# graph response is mapped onto a comparable scale: rank0 -> 0.9,
+# rank1 -> 0.8, ... floored at 0.1. GRAPH_API_SCORE_WEIGHT then scales the
+# mapped score to tune the graph's share of the fused ranking.
+_GRAPH_RANK_TOP_SCORE = 0.9
+_GRAPH_RANK_STEP = 0.1
+_GRAPH_RANK_MIN_SCORE = 0.1
+
+
+def _stable_chunk_int(chunk_id_str: str) -> int:
+    """Return a stable int for the (document_id, chunk_id) dedup key.
+
+    The graph API returns chunk ids like "chunk-<32-hex-hash>"; the first 8
+    hex chars of the hash form a stable, collision-tolerant int. Falls back
+    to md5-derived ints for any other chunk id shape.
+    """
+    if not chunk_id_str:
+        return 0
+    hex_part = chunk_id_str.rsplit("-", 1)[-1]
+    if len(hex_part) >= 8:
+        try:
+            return int(hex_part[:8], 16)
+        except ValueError:
+            pass
+    return int(hashlib.md5(chunk_id_str.encode("utf-8")).hexdigest()[:8], 16)
+
+
+def _parse_graph_chunk_content(
+    chunk: dict[str, Any], chunk_int: int
+) -> tuple[str, str | None, str]:
+    """Extract (document_id, source_link, semantic_identifier) from a chunk.
+
+    For documents ingested through the onyx sync path, content is the
+    serialized onyx Document JSON whose `id` field equals the onyx document
+    id (the graph's biz_id). Non-JSON content (e.g. plain-text files ingested
+    through the native pipeline) falls back to a stable hash-based id.
+    """
+    content = chunk.get("content", "")
+    file_path = chunk.get("file_path", "")
+    document_id = f"graph-{hashlib.md5(f'{file_path}:{chunk_int}'.encode()).hexdigest()[:16]}"
+    source_link: str | None = None
+    semantic_identifier = file_path
+
+    try:
+        parsed = json.loads(content)
+    except (ValueError, TypeError):
+        parsed = None
+
+    if isinstance(parsed, dict):
+        if parsed.get("id"):
+            source_link = str(parsed["id"])
+            document_id = source_link
+        sem_id = parsed.get("semantic_identifier") or parsed.get("title")
+        if sem_id:
+            semantic_identifier = str(sem_id)
+
+    return document_id, source_link, semantic_identifier
 
 
 def _map_graph_chunk_to_inference_chunk(
-    chunk: dict[str, Any], chunk_index: int
-) -> InferenceChunk | None:
+    chunk: dict[str, Any], rank: int
+) -> InferenceChunk:
     """Map a single graph API chunk to an InferenceChunk.
 
-    Returns None if the chunk_id cannot be parsed.
+    document_id comes from the embedded onyx document JSON (`id` field, the
+    document's biz_id), chunk_id is a stable int derived from the graph chunk
+    hash, and the score is rank-based so graph chunks can compete with
+    vector-retrieved chunks in the fused ranking.
     """
-    chunk_id_str = chunk.get("chunk_id", "")
-    match = _CHUNK_ID_PATTERN.match(chunk_id_str)
-    if not match:
-        logger.warning(
-            "Graph search: could not parse chunk_id %s, skipping chunk", chunk_id_str
-        )
-        return None
+    chunk_int = _stable_chunk_int(chunk.get("chunk_id", ""))
+    document_id, source_link, semantic_identifier = _parse_graph_chunk_content(
+        chunk, chunk_int
+    )
 
-    document_id = match.group(1)
-    chunk_int = int(match.group(2))
+    rank_score = max(
+        _GRAPH_RANK_MIN_SCORE,
+        _GRAPH_RANK_TOP_SCORE - _GRAPH_RANK_STEP * rank,
+    )
+    score = rank_score * GRAPH_API_SCORE_WEIGHT
 
     file_path = chunk.get("file_path", "")
-    rerank_score = chunk.get("rerank_score", 0.0)
+
+    # Graph chunks have no chunk-level links; cite the document itself.
+    # onyx indexes links by in-chunk offset and consumers read source_links[0],
+    # so the document link must sit at key 0 (see web_search/utils.py).
+    source_links = {0: source_link} if source_link else None
 
     # The graph API does not provide per-section links, images, or section
     # continuity info. Map updated_at best-effort when the API supplies it.
@@ -55,10 +121,10 @@ def _map_graph_chunk_to_inference_chunk(
         document_id=document_id,
         chunk_id=chunk_int,
         source_type=DocumentSource.GRAPH,
-        semantic_identifier=file_path,
-        title=file_path,
+        semantic_identifier=semantic_identifier,
+        title=semantic_identifier,
         boost=0,
-        score=float(rerank_score),
+        score=score,
         hidden=False,
         content=chunk.get("content", ""),
         blurb="",
@@ -68,7 +134,7 @@ def _map_graph_chunk_to_inference_chunk(
         chunk_context="",
         is_federated=False,
         file_id=file_path,
-        source_links=None,
+        source_links=source_links,
         image_file_id=None,
         section_continuation=False,
         updated_at=updated_at,
@@ -84,10 +150,9 @@ def search_graph(query_request: ChunkIndexRequest) -> list[InferenceChunk]:
     if not GRAPH_API_URL:
         return []
 
+    # The graph API runs in guest mode (auth disabled), so the token is
+    # optional; attach Authorization only when configured.
     auth_token = GRAPH_API_AUTH_TOKEN
-    if not auth_token:
-        logger.warning("Graph search: GRAPH_API_AUTH_TOKEN not configured, skipping")
-        return []
 
     payload: dict[str, Any] = {
         "query": query_request.query,
@@ -103,10 +168,9 @@ def search_graph(query_request: ChunkIndexRequest) -> list[InferenceChunk]:
         query_request.query[:200],
     )
 
-    headers: dict[str, str] = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {auth_token}",
-    }
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    if auth_token:
+        headers["Authorization"] = f"Bearer {auth_token}"
 
     try:
         response = httpx.post(
@@ -147,11 +211,15 @@ def search_graph(query_request: ChunkIndexRequest) -> list[InferenceChunk]:
         )
         return []
 
+    # The graph API returns chunks ordered by rerank_score desc; re-sort
+    # defensively so rank-based scoring holds regardless of graph config.
+    ordered_chunks = sorted(
+        chunks_data, key=lambda c: c.get("rerank_score", 0.0), reverse=True
+    )
+
     inference_chunks: list[InferenceChunk] = []
-    for chunk in chunks_data:
-        mapped = _map_graph_chunk_to_inference_chunk(chunk, len(inference_chunks))
-        if mapped is not None:
-            inference_chunks.append(mapped)
+    for rank, chunk in enumerate(ordered_chunks):
+        inference_chunks.append(_map_graph_chunk_to_inference_chunk(chunk, rank))
 
     logger.info(
         "Graph search result: query=%s returned %d/%d chunks, samples=%s",

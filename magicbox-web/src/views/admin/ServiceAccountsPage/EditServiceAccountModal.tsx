@@ -1,25 +1,21 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Button, Divider } from "@opal/components";
+import { Button } from "@opal/components";
 import { SvgUsers, SvgLogOut, SvgCheck } from "@opal/icons";
-import { ContentAction, toast } from "@opal/layouts";
+import { toast } from "@opal/layouts";
 import { Modal } from "@opal/components";
 import { InputTypeIn } from "@opal/components";
-import InputSelect from "@/refresh-components/inputs/InputSelect";
 import { Popover } from "@opal/components";
 import LineItem from "@/refresh-components/buttons/LineItem";
 import { ShadowDiv } from "@opal/components";
 import { Tooltip } from "@opal/components";
 import { Section } from "@/layouts/general-layouts";
-import { UserRole, USER_ROLE_LABELS } from "@/lib/types";
 import useGroups from "@/hooks/useGroups";
 import {
   addUserToGroup,
   removeUserFromGroup,
 } from "@/views/admin/UsersPage/svc";
-import { updateApiKey } from "@/views/admin/ServiceAccountsPage/svc";
-import { SERVICE_ACCOUNT_ROLE_OPTIONS } from "@/views/admin/ServiceAccountsPage/interfaces";
 import type { APIKey } from "@/views/admin/ServiceAccountsPage/interfaces";
 import { cn } from "@opal/utils";
 
@@ -53,9 +49,6 @@ export default function EditServiceAccountModal({
   const [searchTerm, setSearchTerm] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<UserRole>(
-    apiKey.api_key_role
-  );
 
   // The API-key's synthetic user is a real group member, so derive current
   // membership from the groups list (defaults are excluded server-side).
@@ -108,8 +101,7 @@ export default function EditServiceAccountModal({
     return Array.from(memberGroupIds).some((id) => !baselineGroupIds.has(id));
   }, [memberGroupIds, baselineGroupIds]);
 
-  const hasRoleChange = selectedRole !== apiKey.api_key_role;
-  const hasChanges = hasGroupChanges || hasRoleChange;
+  const hasChanges = hasGroupChanges;
 
   const toggleGroup = (groupId: number) => {
     setEditedGroupIds((prev) => {
@@ -152,16 +144,6 @@ export default function EditServiceAccountModal({
         }
       }
 
-      if (selectedRole !== apiKey.api_key_role) {
-        const res = await updateApiKey(apiKey.api_key_id, {
-          name: apiKey.api_key_name ?? undefined,
-          role: selectedRole,
-        });
-        if (!res.ok) {
-          throw new Error((await res.text()) || "Failed to update role");
-        }
-      }
-
       onMutate();
       refreshGroups();
       toast.success("Service account updated");
@@ -190,7 +172,7 @@ export default function EditServiceAccountModal({
       <Modal.Content width="sm" ref={contentRef}>
         <Modal.Header
           icon={SvgUsers}
-          title={`Edit ${displayName}'s Groups & Roles`}
+          title={`Edit ${displayName}'s Groups`}
           description={apiKey.api_key_display}
           onClose={isSubmitting ? undefined : onClose}
         />
@@ -300,36 +282,6 @@ export default function EditServiceAccountModal({
                 )}
               </ShadowDiv>
             </Section>
-
-            <Divider paddingParallel="fit" paddingPerpendicular="fit" />
-
-            <ContentAction
-              title="Account Role"
-              description="This controls the service account's general permissions."
-              sizePreset="main-ui"
-              variant="section"
-              padding="fit"
-              rightChildren={
-                <InputSelect
-                  value={selectedRole}
-                  onValueChange={(v) => setSelectedRole(v as UserRole)}
-                >
-                  <InputSelect.Trigger />
-                  <InputSelect.Content>
-                    {SERVICE_ACCOUNT_ROLE_OPTIONS.map((opt) => (
-                      <InputSelect.Item
-                        key={opt.role}
-                        value={opt.role.toString()}
-                        icon={opt.icon}
-                        description={opt.description}
-                      >
-                        {USER_ROLE_LABELS[opt.role]}
-                      </InputSelect.Item>
-                    ))}
-                  </InputSelect.Content>
-                </InputSelect>
-              }
-            />
           </Section>
         </Modal.Body>
 

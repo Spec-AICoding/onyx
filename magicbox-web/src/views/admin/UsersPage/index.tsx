@@ -25,7 +25,7 @@ function UsersContent() {
   const { data: scimToken } = useScimToken();
   const showScim = enterpriseTier && !!scimToken;
 
-  const { activeCount, invitedCount, pendingCount, roleCounts, statusCounts } =
+  const { activeCount, invitedCount, pendingCount, accountTypeCounts, statusCounts } =
     useUserCounts();
 
   const [selectedStatuses, setSelectedStatuses] = useState<StatusFilter>([]);
@@ -53,7 +53,7 @@ function UsersContent() {
       <UsersTable
         selectedStatuses={selectedStatuses}
         onStatusesChange={setSelectedStatuses}
-        roleCounts={roleCounts}
+        accountTypeCounts={accountTypeCounts}
         statusCounts={statusCounts}
       />
     </>

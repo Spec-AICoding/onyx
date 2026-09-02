@@ -145,6 +145,9 @@ GRAPH_API_URL = os.environ.get("GRAPH_API_URL") or ""
 GRAPH_API_AUTH_TOKEN = os.environ.get("GRAPH_API_AUTH_TOKEN") or ""
 GRAPH_API_QUERY_MODE = os.environ.get("GRAPH_API_QUERY_MODE") or "local"
 GRAPH_API_TOP_K = int(os.environ.get("GRAPH_API_TOP_K") or "5")
+# Weight multiplier for graph search scores in the fused result ranking.
+# >1.0 boosts graph chunks, <1.0 de-emphasizes them. Requires restart.
+GRAPH_API_SCORE_WEIGHT = float(os.environ.get("GRAPH_API_SCORE_WEIGHT", "1.0"))
 
 
 #####

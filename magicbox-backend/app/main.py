@@ -296,6 +296,7 @@ def list_connectors() -> ConnectorListResponse:
 class SyncFileItem(BaseModel):
     id: str  # 与 file_id 同值，供前端分页 hook 的泛型约束使用
     file_id: str
+    cc_pair_id: int  # 所属连接器实例（按类型聚合检索时区分行归属）
     display_name: str | None = None
     document_count: int | None = None
     created_at: str | None = None
@@ -339,6 +340,7 @@ class DocumentsResponse(BaseModel):
 
 class SyncAttemptItem(BaseModel):
     id: int  # index_attempt.id（分页 hook 泛型约束需要 id 字段）
+    cc_pair_id: int  # 所属连接器实例（按类型聚合检索时下钻文件用）
     status: str  # IndexingStatus 7 态
     total_docs_indexed: int | None = None
     file_count: int = 0  # 该任务产生的批次文件数
@@ -358,43 +360,65 @@ class SyncAttemptListResponse(BaseModel):
 
 @app.get("/sync-attempts", response_model=SyncAttemptListResponse)
 def list_sync_attempts(
-    cc_pair_id: int,
+    cc_pair_id: int | None = None,
+    source: str | None = None,
     page_num: int = Query(0, ge=0),
     page_size: int = Query(50, ge=1, le=1000),
 ) -> SyncAttemptListResponse:
+    """List index attempts for one connector instance or all instances of a
+    connector source. Exactly one of ``cc_pair_id`` / ``source`` is required;
+    ``source`` matches the connector table case-insensitively (DB stores
+    UPPERCASE, the WebUI sends lowercase)."""
+    if cc_pair_id is None and source is None:
+        raise HTTPException(
+            status_code=422, detail="cc_pair_id or source is required"
+        )
+
     with engine.connect() as conn:
-        exists = conn.execute(
-            text("SELECT 1 FROM connector_credential_pair WHERE id = :cc_pair_id"),
-            {"cc_pair_id": cc_pair_id},
-        ).first()
-        if exists is None:
-            raise HTTPException(status_code=404, detail="cc_pair not found")
+        if cc_pair_id is not None:
+            exists = conn.execute(
+                text(
+                    "SELECT 1 FROM connector_credential_pair WHERE id = :cc_pair_id"
+                ),
+                {"cc_pair_id": cc_pair_id},
+            ).first()
+            if exists is None:
+                raise HTTPException(status_code=404, detail="cc_pair not found")
+            where_clause = "ia.connector_credential_pair_id = :cc_pair_id"
+            where_params = {"cc_pair_id": cc_pair_id}
+        else:
+            where_clause = (
+                "EXISTS (SELECT 1 FROM connector_credential_pair ccp"
+                "        JOIN connector c ON c.id = ccp.connector_id"
+                "        WHERE ccp.id = ia.connector_credential_pair_id"
+                "          AND LOWER(c.source) = LOWER(:source))"
+            )
+            where_params = {"source": source}
 
         total = conn.execute(
-            text(
-                "SELECT COUNT(*) FROM index_attempt"
-                " WHERE connector_credential_pair_id = :cc_pair_id"
-            ),
-            {"cc_pair_id": cc_pair_id},
+            text(f"SELECT COUNT(*) FROM index_attempt ia WHERE {where_clause}"),
+            where_params,
         ).scalar_one()
 
         rows = conn.execute(
             text(
-                """
+                f"""
                 SELECT ia.id, ia.status, ia.total_docs_indexed,
                        ia.completed_batches, ia.total_batches,
                        ia.error_msg, ia.time_started, ia.time_updated,
                        (SELECT COUNT(*) FROM file_record fr
-                        WHERE fr.file_id LIKE 'iab/' || :cc_pair_id || '/' || ia.id || '/%')
-                       AS file_count
+                        WHERE fr.file_id LIKE 'iab/' || ia.connector_credential_pair_id
+                                       || '/' || ia.id || '/%')
+                       AS file_count,
+                       ia.connector_credential_pair_id AS cc_pair_id
                 FROM index_attempt ia
-                WHERE ia.connector_credential_pair_id = :cc_pair_id
+                WHERE {where_clause}
                 ORDER BY ia.time_created DESC
                 LIMIT :page_size OFFSET :offset
                 """
             ),
             {
-                "cc_pair_id": cc_pair_id,
+                **where_params,
                 "page_size": page_size,
                 "offset": page_num * page_size,
             },
@@ -403,6 +427,7 @@ def list_sync_attempts(
     def _to_item(row) -> SyncAttemptItem:
         return SyncAttemptItem(
             id=row[0],
+            cc_pair_id=row[9],
             # DB 枚举存大写（FAILED/SUCCESS），前端 7 态标签为小写
             status=row[1].lower(),
             total_docs_indexed=row[2],
@@ -423,25 +448,61 @@ def list_sync_attempts(
 
 @app.get("/sync-files", response_model=SyncFileListResponse)
 def list_sync_files(
-    cc_pair_id: int,
+    cc_pair_id: int | None = None,
+    source: str | None = None,
     index_attempt_id: int | None = None,
     page_num: int = Query(0, ge=0),
     page_size: int = Query(50, ge=1, le=1000),
 ) -> SyncFileListResponse:
-    with engine.connect() as conn:
-        exists = conn.execute(
-            text("SELECT 1 FROM connector_credential_pair WHERE id = :cc_pair_id"),
-            {"cc_pair_id": cc_pair_id},
-        ).first()
-        if exists is None:
-            raise HTTPException(status_code=404, detail="cc_pair not found")
+    """List batch files for one connector instance or all instances of a
+    connector source. Exactly one of ``cc_pair_id`` / ``source`` is required;
+    ``source`` matches the connector table case-insensitively."""
+    if cc_pair_id is None and source is None:
+        raise HTTPException(
+            status_code=422, detail="cc_pair_id or source is required"
+        )
 
-        prefix = f"iab/{cc_pair_id}/%"
-        if index_attempt_id is not None:
-            prefix = f"iab/{cc_pair_id}/{index_attempt_id}/%"
+    with engine.connect() as conn:
+        if cc_pair_id is not None:
+            exists = conn.execute(
+                text(
+                    "SELECT 1 FROM connector_credential_pair WHERE id = :cc_pair_id"
+                ),
+                {"cc_pair_id": cc_pair_id},
+            ).first()
+            if exists is None:
+                raise HTTPException(status_code=404, detail="cc_pair not found")
+            cc_pair_ids = [cc_pair_id]
+        else:
+            cc_pair_ids = [
+                row[0]
+                for row in conn.execute(
+                    text(
+                        "SELECT ccp.id FROM connector_credential_pair ccp"
+                        " JOIN connector c ON c.id = ccp.connector_id"
+                        " WHERE LOWER(c.source) = LOWER(:source)"
+                    ),
+                    {"source": source},
+                ).fetchall()
+            ]
+
+        if not cc_pair_ids:
+            return SyncFileListResponse(applicable=True, total_items=0, items=[])
+
+        prefixes = [
+            f"iab/{cc}/{index_attempt_id}/%"
+            if index_attempt_id is not None
+            else f"iab/{cc}/%"
+            for cc in cc_pair_ids
+        ]
+        params = {"prefixes": prefixes}
+
         total = conn.execute(
-            text("SELECT COUNT(*) FROM file_record WHERE file_id LIKE :prefix"),
-            {"prefix": prefix},
+            text(
+                "SELECT COUNT(*) FROM file_record"
+                " WHERE file_id LIKE ANY(:prefixes)"
+            ),
+            params,
         ).scalar_one()
 
         rows = conn.execute(
@@ -449,15 +510,16 @@ def list_sync_files(
                 """
                 SELECT file_id, display_name,
                        file_metadata->>'document_count' AS document_count,
-                       created_at, processed, kg_stage, kg_processing_time
+                       created_at, processed, kg_stage, kg_processing_time,
+                       split_part(file_id, '/', 2)::int AS cc_pair_id
                 FROM file_record
-                WHERE file_id LIKE :prefix
+                WHERE file_id LIKE ANY(:prefixes)
                 ORDER BY created_at DESC
                 LIMIT :page_size OFFSET :offset
                 """
             ),
             {
-                "prefix": prefix,
+                **params,
                 "page_size": page_size,
                 "offset": page_num * page_size,
             },
@@ -468,6 +530,7 @@ def list_sync_files(
         return SyncFileItem(
             id=row[0],
             file_id=row[0],
+            cc_pair_id=row[7],
             display_name=row[1],
             document_count=int(doc_count) if doc_count is not None else None,
             created_at=str(row[3]) if row[3] is not None else None,

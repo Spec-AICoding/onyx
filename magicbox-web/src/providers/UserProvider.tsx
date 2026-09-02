@@ -14,11 +14,13 @@ import {
   UserPersonalization,
   UserRole,
   ThemePreference,
+  Permission,
 } from "@/lib/types";
 import { usePostHog } from "posthog-js/react";
 import { useSettings } from "@/lib/settings/hooks";
 import { useCurrentUser } from "@/lib/users/hooks";
 import { useAuthTypeMetadata, useTokenRefresh } from "@/lib/auth/hooks";
+import { hasAnyAdminPermission } from "@/lib/permissions";
 import { AuthTypeMetadata } from "@/lib/auth/types";
 import {
   updateUserPersonalization as persistPersonalization,
@@ -26,10 +28,14 @@ import {
 } from "@/lib/users/svc";
 import { useTheme } from "next-themes";
 
+const EMPTY_PERMISSIONS: string[] = [];
+
 interface UserContextType {
   user: User | null;
   isAdmin: boolean;
   isCurator: boolean;
+  hasAdminAccess: boolean;
+  adminCapabilities: string[];
   refreshUser: () => Promise<void>;
   isCloudSuperuser: boolean;
   authTypeMetadata: AuthTypeMetadata | undefined;
@@ -552,11 +558,24 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         updateUserDefaultAppMode,
         updateUserVoiceSettings,
         toggleAgentPinnedStatus,
-        isAdmin: upToDateUser?.role === UserRole.ADMIN,
+        // The backend no longer returns `role` (permission-based model);
+        // keep the legacy role check as a fallback so nothing regresses.
+        isAdmin:
+          upToDateUser?.role === UserRole.ADMIN ||
+          (upToDateUser?.effective_permissions ?? EMPTY_PERMISSIONS).includes(
+            Permission.FULL_ADMIN_PANEL_ACCESS
+          ),
         // Curator status applies for either global or basic curator
         isCurator:
           upToDateUser?.role === UserRole.CURATOR ||
           upToDateUser?.role === UserRole.GLOBAL_CURATOR,
+        // Admin-area reach: any permission an admin route requires (admins
+        // hold the FULL_ADMIN_PANEL_ACCESS override token).
+        hasAdminAccess: hasAnyAdminPermission(
+          upToDateUser?.admin_capabilities ?? EMPTY_PERMISSIONS
+        ),
+        adminCapabilities:
+          upToDateUser?.admin_capabilities ?? EMPTY_PERMISSIONS,
         isCloudSuperuser: upToDateUser?.is_cloud_superuser ?? false,
       }}
     >

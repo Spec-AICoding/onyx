@@ -26,6 +26,21 @@ const nextConfig = {
         source: "/api/manage/admin/external-user-groups/:path*",
         destination: "http://127.0.0.1:8090/external-user-groups/:path*",
       },
+      // 知识图谱嵌入：LightRAG API（lightrag-server）
+      {
+        source: "/lightrag-api/:path*",
+        destination: "http://127.0.0.1:9621/:path*",
+      },
+      // 知识图谱嵌入：magicbox 图数据后端（Neo4j 子图查询）
+      {
+        source: "/magicbox/:path*",
+        destination: "http://127.0.0.1:9622/:path*",
+      },
+      // 知识图谱嵌入：onyx gateway 元数据（过滤面板连接器列表）
+      {
+        source: "/onyx/:path*",
+        destination: "http://127.0.0.1:8090/:path*",
+      },
       {
         source: "/api/docs",
         destination: `${process.env.INTERNAL_URL || "http://localhost:8080"}/docs`,

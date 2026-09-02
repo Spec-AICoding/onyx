@@ -62,6 +62,14 @@ export enum AccountType {
   ANONYMOUS = "ANONYMOUS",
 }
 
+export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  [AccountType.STANDARD]: "Standard",
+  [AccountType.BOT]: "Slack Bot",
+  [AccountType.EXT_PERM_USER]: "External User",
+  [AccountType.SERVICE_ACCOUNT]: "Service Account",
+  [AccountType.ANONYMOUS]: "Anonymous",
+};
+
 export enum UserRole {
   LIMITED = "limited",
   BASIC = "basic",
@@ -81,6 +89,29 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.EXT_PERM_USER]: "External Permissioned User",
   [UserRole.SLACK_USER]: "Slack User",
 };
+
+export enum Permission {
+  BASIC_ACCESS = "basic",
+  READ_CONNECTORS = "read:connectors",
+  READ_DOCUMENT_SETS = "read:document_sets",
+  READ_AGENTS = "read:agents",
+  READ_USERS = "read:users",
+  READ_USER_GROUPS = "read:user_groups",
+  ADD_AGENTS = "add:agents",
+  MANAGE_AGENTS = "manage:agents",
+  MANAGE_DOCUMENT_SETS = "manage:document_sets",
+  MANAGE_CONNECTORS = "manage:connectors",
+  MANAGE_LLMS = "manage:llms",
+  READ_AGENT_ANALYTICS = "read:agent_analytics",
+  MANAGE_ACTIONS = "manage:actions",
+  READ_QUERY_HISTORY = "read:query_history",
+  MANAGE_USER_GROUPS = "manage:user_groups",
+  MANAGE_SKILLS = "manage:skills",
+  CREATE_USER_API_KEYS = "create:user_api_keys",
+  MANAGE_SERVICE_ACCOUNT_API_KEYS = "manage:service_account_api_keys",
+  MANAGE_BOTS = "manage:bots",
+  FULL_ADMIN_PANEL_ACCESS = "admin",
+}
 
 export enum UserStatus {
   ACTIVE = "active",
@@ -126,6 +157,14 @@ export interface User {
   password_configured?: boolean;
   tenant_info?: TenantInfo | null;
   personalization?: UserPersonalization;
+  // Permission model: effective global permissions (e.g. "admin") and the
+  // scoped manager bundle that drives admin-nav reveal.
+  effective_permissions?: string[];
+  // True if the user manages any group (drives manager nav visibility).
+  is_group_manager?: boolean;
+  // effective tokens plus the scoped manager bundle; server-computed so the
+  // client never re-derives policy.
+  admin_capabilities?: string[];
 }
 
 export interface TenantInfo {

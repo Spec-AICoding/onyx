@@ -10,7 +10,7 @@ import { UserRole } from "@/lib/types";
 import { Settings, Tier } from "@/lib/settings/types";
 import { tierAtLeast } from "@/lib/tiers";
 import { Divider, InputTypeIn, SidebarTab } from "@opal/components";
-import { SvgArrowUpCircle, SvgSearch, SvgX } from "@opal/icons";
+import { SvgArrowUpCircle, SvgSearch, SvgX, SvgNetworkGraph } from "@opal/icons";
 import {
   useBillingInformation,
   useLicense,
@@ -31,6 +31,7 @@ const SECTIONS = {
   AGENTS_AND_ACTIONS: "智能体与操作",
   DATA_SOURCES: "数据源",
   DOCUMENTS_AND_KNOWLEDGE: "文档与知识",
+  KNOWLEDGE_GOVERNANCE: "知识治理",
   DATA: "数据",
   INTEGRATIONS: "集成",
   PERMISSIONS: "权限",
@@ -124,7 +125,15 @@ function buildItems(
     });
   }
 
-  // 6. Data（同步数据查看，admin only）
+  // 6. Knowledge Governance（知识图谱，后台内嵌）
+  items.push({
+    section: SECTIONS.KNOWLEDGE_GOVERNANCE,
+    name: "知识图谱",
+    icon: SvgNetworkGraph,
+    link: "/admin/rag",
+  });
+
+  // 7. Data（同步数据查看，admin only）
   if (!isCurator) {
     add(SECTIONS.DATA, ADMIN_ROUTES.SYNC_FILES);
   }

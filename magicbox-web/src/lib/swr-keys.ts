@@ -263,6 +263,8 @@ export const SWR_KEYS = {
   syncAttempts: "/api/manage/admin/sync-attempts",
   syncAttemptsProbe: (ccPairId: number) =>
     `/api/manage/admin/sync-attempts?cc_pair_id=${ccPairId}&page_num=0&page_size=1`,
+  syncAttemptsSourceProbe: (source: string) =>
+    `/api/manage/admin/sync-attempts?source=${encodeURIComponent(source)}&page_num=0&page_size=1`,
 
   // ── Sync Files（数据 → 同步文件列表，独立 API 经 rewrites 代理）───────────
   // file_id 含斜杠（iab/{cc}/{attempt}/{batch}.json），直接拼进路径段，
