@@ -248,6 +248,11 @@ export interface SendSearchQueryRequest {
   run_query_expansion?: boolean;
   num_hits?: number; // default 30
   include_content?: boolean;
+  /**
+   * EE 专属：关闭图谱通道（disable_graph_search）后，检索结果将不包含
+   * 来自 LightRAG 知识图谱的条目（source_type="graph"）
+   */
+  disable_graph_search?: boolean;
   stream?: boolean;
 }
 

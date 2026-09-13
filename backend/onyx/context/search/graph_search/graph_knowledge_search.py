@@ -7,8 +7,12 @@ import httpx
 
 from onyx.configs.app_configs import (
     GRAPH_API_AUTH_TOKEN,
+    GRAPH_API_CHUNK_TOP_K,
+    GRAPH_API_PASS_KEYWORDS,
     GRAPH_API_QUERY_MODE,
+    GRAPH_API_RERANK,
     GRAPH_API_SCORE_WEIGHT,
+    GRAPH_API_TIMEOUT,
     GRAPH_API_TOP_K,
     GRAPH_API_URL,
 )
@@ -159,12 +163,25 @@ def search_graph(query_request: ChunkIndexRequest) -> list[InferenceChunk]:
         "mode": GRAPH_API_QUERY_MODE,
         "top_k": GRAPH_API_TOP_K,
     }
+    # Optional forwarded configs — only sent when explicitly enabled,
+    # otherwise the graph server's own defaults apply.
+    if GRAPH_API_CHUNK_TOP_K > 0:
+        payload["chunk_top_k"] = GRAPH_API_CHUNK_TOP_K
+    if GRAPH_API_RERANK in ("true", "false"):
+        payload["enable_rerank"] = GRAPH_API_RERANK == "true"
+    if GRAPH_API_PASS_KEYWORDS and query_request.query_keywords:
+        payload["hl_keywords"] = query_request.query_keywords
+        payload["ll_keywords"] = query_request.query_keywords
 
     logger.info(
-        "Graph search request: url=%s mode=%s top_k=%s query=%s",
+        "Graph search request: url=%s mode=%s top_k=%s chunk_top_k=%s rerank=%s pass_keywords=%s payload_keys=%s query=%s",
         GRAPH_API_URL,
         GRAPH_API_QUERY_MODE,
         GRAPH_API_TOP_K,
+        GRAPH_API_CHUNK_TOP_K,
+        GRAPH_API_RERANK,
+        GRAPH_API_PASS_KEYWORDS,
+        list(payload.keys()),
         query_request.query[:200],
     )
 
@@ -177,7 +194,7 @@ def search_graph(query_request: ChunkIndexRequest) -> list[InferenceChunk]:
             GRAPH_API_URL,
             json=payload,
             headers=headers,
-            timeout=30.0,
+            timeout=GRAPH_API_TIMEOUT,
         )
         response.raise_for_status()
         logger.info(

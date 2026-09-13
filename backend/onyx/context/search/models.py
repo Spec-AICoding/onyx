@@ -176,6 +176,9 @@ class ChunkSearchRequest(BasicChunkRequest):
     # Use with caution!
     bypass_acl: bool = False
 
+    # Debug flag: skip the external graph search channel for this request.
+    disable_graph_search: bool = False
+
 
 # From the Chat Session we know what project (if any) this search should include
 # From the user uploads and persona uploaded files, we know which of those to include
@@ -184,6 +187,9 @@ class ChunkIndexRequest(BasicChunkRequest):
     filters: IndexFilters
 
     query_keywords: list[str] | None = None
+
+    # Debug flag: skip the external graph search channel for this request.
+    disable_graph_search: bool = False
 
 
 class ContextExpansionType(str, Enum):

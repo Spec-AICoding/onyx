@@ -230,6 +230,61 @@ def list_public_external_groups(cc_pair_id: int) -> PublicGroupResponse:
     )
 
 
+class ConnectorDocumentItem(BaseModel):
+    """文档列表条目（document 表字段；biz_id 即 onyx document id）。"""
+
+    biz_id: str
+    name: str | None = None
+    link: str | None = None
+    kg_stage: str | None = None
+
+
+class ConnectorDocumentsResponse(BaseModel):
+    documents: list[ConnectorDocumentItem] = []
+
+
+# 注意：本路由必须先于 /connectors/{cc_pair_id} 注册，否则 "documents"
+# 会先被 {cc_pair_id} 捕获并因 int 转换失败返回 422。
+@app.get("/connectors/documents", response_model=ConnectorDocumentsResponse)
+def list_connector_documents(
+    name: str = Query(..., min_length=1, max_length=256),
+    source: str | None = Query(None, min_length=1, max_length=64),
+) -> ConnectorDocumentsResponse:
+    """连接器实例下的文档列表（来自 onyx document 表的权威归属）。
+
+    归属取 document_by_connector_credential_pair 关联表：
+    (connector_id, credential_id) 复合索引命中后按 document 主键 join。
+    不查 Neo4j，也不受图谱实体合并（跨连接器共享实体把别的连接器的
+    biz_id 累积进来）的影响。
+    name 为连接器实例名（connector.name）；source 可选，同名实例时消歧。
+    """
+    sql = """
+        SELECT d.id, d.semantic_id, d.link, d.kg_stage
+        FROM connector c
+        JOIN connector_credential_pair ccp ON ccp.connector_id = c.id
+        JOIN document_by_connector_credential_pair dbc
+          ON dbc.connector_id = ccp.connector_id
+         AND dbc.credential_id = ccp.credential_id
+        JOIN document d ON d.id = dbc.id
+        WHERE c.name = :name
+    """
+    params: dict = {"name": name}
+    if source:
+        sql += " AND c.source = :source"
+        params["source"] = source
+    sql += " ORDER BY d.semantic_id"
+
+    with engine.connect() as conn:
+        rows = conn.execute(text(sql), params).fetchall()
+
+    return ConnectorDocumentsResponse(
+        documents=[
+            ConnectorDocumentItem(biz_id=r[0], name=r[1], link=r[2], kg_stage=r[3])
+            for r in rows
+        ]
+    )
+
+
 @app.get("/connectors/{cc_pair_id}", response_model=ConnectorResponse)
 def get_connector(cc_pair_id: int) -> ConnectorResponse:
     """连接器元数据（名称与来源），供 LightRAG 图谱标签注入使用。

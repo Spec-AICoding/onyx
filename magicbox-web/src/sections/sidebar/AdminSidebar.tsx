@@ -10,7 +10,7 @@ import { UserRole } from "@/lib/types";
 import { Settings, Tier } from "@/lib/settings/types";
 import { tierAtLeast } from "@/lib/tiers";
 import { Divider, InputTypeIn, SidebarTab } from "@opal/components";
-import { SvgArrowUpCircle, SvgSearch, SvgX, SvgNetworkGraph } from "@opal/icons";
+import { SvgArrowUpCircle, SvgSearch, SvgX, SvgNetworkGraph, SvgLineChartUp } from "@opal/icons";
 import {
   useBillingInformation,
   useLicense,
@@ -131,6 +131,14 @@ function buildItems(
     name: "知识图谱",
     icon: SvgNetworkGraph,
     link: "/admin/rag",
+  });
+
+  // 6.1 Knowledge Governance（效果评测，检索调试页）
+  items.push({
+    section: SECTIONS.KNOWLEDGE_GOVERNANCE,
+    name: "效果评测",
+    icon: SvgLineChartUp,
+    link: "/admin/effect-eval",
   });
 
   // 7. Data（同步数据查看，admin only）

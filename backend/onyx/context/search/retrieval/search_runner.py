@@ -152,8 +152,9 @@ def search_chunks(
                 )
             )
 
-    # External graph knowledge search — optional, configured via env
-    if GRAPH_API_URL:
+    # External graph knowledge search — optional, configured via env;
+    # skipped per-request when the debug flag is set.
+    if GRAPH_API_URL and not query_request.disable_graph_search:
         run_queries.append((search_graph, (query_request,)))
 
     parallel_search_results = run_functions_tuples_in_parallel(run_queries)

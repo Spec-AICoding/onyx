@@ -159,6 +159,20 @@ def run_jobs() -> None:
         "graph_processing",
     ]
 
+    cmd_worker_graph_acl_push = [
+        "celery",
+        "-A",
+        "onyx.background.celery.versioned_apps.graph_acl_push",
+        "worker",
+        "--pool=threads",
+        "--concurrency=2",
+        "--prefetch-multiplier=1",
+        "--loglevel=INFO",
+        "--hostname=graph_acl_push@%n",
+        "-Q",
+        "graph_acl_push",
+    ]
+
     all_workers = [
         # Essential: BEAT (scheduler) + PRIMARY (default queue) must run together
         ("PRIMARY", cmd_worker_primary),
@@ -171,6 +185,7 @@ def run_jobs() -> None:
         ("USER_FILE_PROCESSING", cmd_worker_user_file_processing),
         # ("SCHEDULED_TASKS", cmd_worker_scheduled_tasks),
         ("GRAPH_PROCESSING", cmd_worker_graph_processing),
+        ("GRAPH_ACL_PUSH", cmd_worker_graph_acl_push),
         ("BEAT", cmd_beat),
     ]
 

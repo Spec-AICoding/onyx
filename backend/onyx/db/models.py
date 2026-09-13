@@ -7362,3 +7362,24 @@ class SSOProvider(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+
+class GraphAclPushState(Base):
+    """Per-source incremental watermark for pushing document ACLs to the graph.
+
+    One row per connector source; the watermark advances only after the
+    external graph service confirms a successful push (see the
+    ``graph_acl_push`` Celery tasks).
+    """
+
+    __tablename__ = "graph_acl_push_state"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    watermark: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("'epoch'")
+    )
+    last_pushed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)

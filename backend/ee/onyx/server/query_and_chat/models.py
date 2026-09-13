@@ -37,6 +37,8 @@ class SendSearchQueryRequest(BaseModel):
     hybrid_alpha: float | None = None
     include_content: bool = False
     stream: bool = False
+    # Debug flag: skip the external graph search channel for this request.
+    disable_graph_search: bool = False
 
 
 class SearchDocWithContent(SearchDoc):

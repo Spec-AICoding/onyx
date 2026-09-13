@@ -87,6 +87,7 @@ POSTGRES_CELERY_WORKER_USER_FILE_PROCESSING_APP_NAME = (
 )
 POSTGRES_CELERY_WORKER_SCHEDULED_TASKS_APP_NAME = "celery_worker_scheduled_tasks"
 POSTGRES_CELERY_WORKER_GRAPH_PROCESSING_APP_NAME = "celery_worker_graph_processing"
+POSTGRES_CELERY_WORKER_GRAPH_ACL_PUSH_APP_NAME = "celery_worker_graph_acl_push"
 POSTGRES_PERMISSIONS_APP_NAME = "permissions"
 POSTGRES_UNKNOWN_APP_NAME = "unknown"
 
@@ -510,6 +511,9 @@ class OnyxCeleryQueues:
     # Graph processing queue
     GRAPH_PROCESSING = "graph_processing"
 
+    # Graph ACL push queue
+    GRAPH_ACL_PUSH = "graph_acl_push"
+
 
 class OnyxRedisLocks:
     PRIMARY_WORKER = "da_lock:primary_worker"
@@ -593,6 +597,9 @@ class OnyxRedisLocks:
     USER_FILE_GRAPH_PROCESSING_QUEUED_PREFIX = (
         "da_lock:user_file_graph_processing_queued"
     )
+
+    # Graph ACL push
+    GRAPH_ACL_PUSH_BEAT_LOCK = "da_lock:check_graph_acl_push_beat"
 
 
 class OnyxRedisSignals:
@@ -764,6 +771,10 @@ class OnyxCeleryTask:
         "check_for_user_file_graph_processing"
     )
     PROCESS_USER_FILE_GRAPH = "process_user_file_graph"
+
+    # Graph ACL push
+    CHECK_FOR_GRAPH_ACL_PUSH = "check_for_graph_acl_push"
+    PUSH_GRAPH_ACL = "push_graph_acl"
 
 
 # this needs to correspond to the matching entry in supervisord

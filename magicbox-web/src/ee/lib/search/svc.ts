@@ -43,6 +43,8 @@ export async function searchDocuments(
     filters?: BaseFilters;
     numHits?: number;
     includeContent?: boolean;
+    /** 关闭图谱检索通道，用于效果评测页的开/关对比 */
+    disableGraphSearch?: boolean;
     signal?: AbortSignal;
   }
 ): Promise<SearchFullResponse> {
@@ -51,6 +53,7 @@ export async function searchDocuments(
     filters: options?.filters,
     num_hits: options?.numHits ?? 30,
     include_content: options?.includeContent ?? false,
+    disable_graph_search: options?.disableGraphSearch ?? false,
     stream: false,
   };
 

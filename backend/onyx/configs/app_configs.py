@@ -148,6 +148,20 @@ GRAPH_API_TOP_K = int(os.environ.get("GRAPH_API_TOP_K") or "5")
 # Weight multiplier for graph search scores in the fused result ranking.
 # >1.0 boosts graph chunks, <1.0 de-emphasizes them. Requires restart.
 GRAPH_API_SCORE_WEIGHT = float(os.environ.get("GRAPH_API_SCORE_WEIGHT", "1.0"))
+# Number of text chunks requested from the graph API (forwarded as chunk_top_k).
+# 0 = don't send the field; the graph server's own default applies.
+GRAPH_API_CHUNK_TOP_K = int(os.environ.get("GRAPH_API_CHUNK_TOP_K") or "0")
+# Forward enable_rerank to the graph API. "" = don't send (server default);
+# "true"/"false" send the corresponding boolean.
+GRAPH_API_RERANK = (os.environ.get("GRAPH_API_RERANK") or "").lower()
+# When true, forward onyx's query_keywords to the graph API as both
+# hl_keywords and ll_keywords, skipping the graph server's LLM keyword
+# extraction (deterministic, one less LLM call). Default off.
+GRAPH_API_PASS_KEYWORDS = (
+    os.environ.get("GRAPH_API_PASS_KEYWORDS", "false").lower() == "true"
+)
+# HTTP timeout for graph API requests, in seconds.
+GRAPH_API_TIMEOUT = float(os.environ.get("GRAPH_API_TIMEOUT") or "30.0")
 
 
 #####
@@ -1178,6 +1192,23 @@ GRAPH_PROCESSING_API_URL = os.environ.get("GRAPH_PROCESSING_API_URL") or ""
 GRAPH_PROCESSING_API_TIMEOUT = int(
     os.environ.get("GRAPH_PROCESSING_API_TIMEOUT") or 300
 )
+
+# Graph ACL push — periodically push document-table ACL changes to the
+# external graph service (magicbox-backend POST /acl/sync).
+GRAPH_ACL_PUSH_ENABLED = (
+    os.environ.get("GRAPH_ACL_PUSH_ENABLED", "").lower() == "true"
+)
+GRAPH_ACL_PUSH_URL = os.environ.get("GRAPH_ACL_PUSH_URL") or ""
+GRAPH_ACL_PUSH_SOURCES = [
+    source.strip().upper()
+    for source in (
+        os.environ.get("GRAPH_ACL_PUSH_SOURCES") or "CONFLUENCE,JIRA"
+    ).split(",")
+    if source.strip()
+]
+GRAPH_ACL_PUSH_FREQUENCY = int(
+    os.environ.get("GRAPH_ACL_PUSH_FREQUENCY") or 1800
+)  # 30 minutes (in seconds)
 
 # The maximum number of tasks that can be queued up to sync to Vespa in a single pass
 VESPA_SYNC_MAX_TASKS = 8192

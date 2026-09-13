@@ -26,6 +26,12 @@ const nextConfig = {
         source: "/api/manage/admin/external-user-groups/:path*",
         destination: "http://127.0.0.1:8090/external-user-groups/:path*",
       },
+      // 效果评测：onyx 检索 API（本部署 APP_API_PREFIX 为空，真实路径无 /api 前缀）
+      // 置于 catch-all 代理（src/app/api/[...path]）之前拦截，附带同源 Cookie 免鉴权透传
+      {
+        source: "/api/search/:path*",
+        destination: "http://127.0.0.1:8080/search/:path*",
+      },
       // 知识图谱嵌入：LightRAG API（lightrag-server）
       {
         source: "/lightrag-api/:path*",

@@ -11,6 +11,7 @@ from onyx.configs.app_configs import (
     DISABLE_VECTOR_DB,
     ENABLE_OPENSEARCH_INDEXING_FOR_ONYX,
     ENTERPRISE_EDITION_ENABLED,
+    GRAPH_ACL_PUSH_FREQUENCY,
     ONYX_DISABLE_VESPA,
     SCHEDULED_EVAL_DATASET_NAMES,
 )
@@ -332,6 +333,22 @@ beat_task_templates.append(
             "priority": OnyxCeleryPriority.MEDIUM,
             "expires": BEAT_EXPIRES_DEFAULT,
             "queue": OnyxCeleryQueues.GRAPH_PROCESSING,
+        },
+    }
+)
+
+# Graph ACL push — periodically ship document-table ACL changes to the
+# external graph service (magicbox-backend POST /acl/sync). The push task
+# itself no-ops when GRAPH_ACL_PUSH_ENABLED is false.
+beat_task_templates.append(
+    {
+        "name": "check-for-graph-acl-push",
+        "task": OnyxCeleryTask.CHECK_FOR_GRAPH_ACL_PUSH,
+        "schedule": timedelta(seconds=GRAPH_ACL_PUSH_FREQUENCY),
+        "options": {
+            "priority": OnyxCeleryPriority.LOW,
+            "expires": BEAT_EXPIRES_DEFAULT,
+            "queue": OnyxCeleryQueues.GRAPH_ACL_PUSH,
         },
     }
 )

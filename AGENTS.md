@@ -2,6 +2,14 @@
 
 This file provides guidance to AI agents when working with code in this repository.
 
+## Language Convention
+
+- Always respond in 中文 (Chinese) — every session, every task, regardless of the
+  user's input language or the language of the code being discussed.
+- Technical identifiers (code, field names, file paths, log output) stay in their
+  original form, but all explanation around them must be written in Chinese.
+- Commit messages and PR titles: Chinese.
+
 ## KEY NOTES
 
 - Python deps live in a `uv`-managed virtualenv at `.venv` (repo root). If it doesn't exist yet, create it

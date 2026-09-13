@@ -46,6 +46,7 @@ def _run_single_search(
     db_session: Session,
     num_hits: int | None = None,
     hybrid_alpha: float | None = None,
+    disable_graph_search: bool = False,
 ) -> list[InferenceChunk]:
     """Execute a single search query and return chunks."""
     chunk_search_request = ChunkSearchRequest(
@@ -53,6 +54,7 @@ def _run_single_search(
         user_selected_filters=filters,
         limit=num_hits,
         hybrid_alpha=hybrid_alpha,
+        disable_graph_search=disable_graph_search,
     )
 
     return search_pipeline(
@@ -126,6 +128,7 @@ def stream_search_query(
             db_session=db_session,
             num_hits=request.num_hits,
             hybrid_alpha=request.hybrid_alpha,
+            disable_graph_search=request.disable_graph_search,
         )
     else:
         # Multiple queries - run in parallel and merge with RRF
@@ -141,6 +144,7 @@ def stream_search_query(
                     db_session,
                     request.num_hits,
                     request.hybrid_alpha,
+                    request.disable_graph_search,
                 ),
             )
             for query in all_executed_queries
