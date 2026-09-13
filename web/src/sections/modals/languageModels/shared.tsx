@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Formik, Form, useFormikContext } from "formik";
 import type { FormikConfig } from "formik";
 import { cn } from "@opal/utils";
@@ -14,13 +15,13 @@ import type {
   LLMProviderView,
   ModelConfiguration,
 } from "@/lib/languageModels/types";
-import { Checkbox } from "@opal/components";
+import { InputCheckbox } from "@opal/components";
 import InputTypeInField from "@/refresh-components/form/InputTypeInField";
 import { InputTypeIn } from "@opal/components";
-import InputComboBox from "@/refresh-components/inputs/InputComboBox";
+import { InputComboBox } from "@opal/components";
 import InputSelect from "@/refresh-components/inputs/InputSelect";
 import PasswordInputTypeInField from "@/refresh-components/form/PasswordInputTypeInField";
-import { Switch } from "@opal/components";
+import { InputSwitch } from "@opal/components";
 import Text from "@/refresh-components/texts/Text";
 import { Button } from "@opal/components";
 import { BaseLLMFormValues } from "@/sections/modals/languageModels/utils";
@@ -74,17 +75,18 @@ export interface DisplayNameFieldProps {
 }
 
 export function DisplayNameField({ disabled }: DisplayNameFieldProps = {}) {
+  const t = useTranslations("admin.languageModels.modals");
   return (
     <InputPadder>
       <InputVertical
         withLabel="name"
-        title="Display Name"
-        suffix="optional"
-        subDescription="Used to identify this provider in the app."
+        title={t("setup.displayNameField.title")}
+        suffix={t("setup.optionalSuffix.label")}
+        subDescription={t("setup.displayNameField.description")}
       >
         <InputTypeInField
           name="name"
-          placeholder="Display Name"
+          placeholder={t("setup.displayNameField.placeholder")}
           variant={disabled ? "disabled" : undefined}
         />
       </InputVertical>
@@ -107,19 +109,22 @@ export function APIKeyField({
   providerName,
   subDescription,
 }: APIKeyFieldProps) {
+  const t = useTranslations("admin.languageModels.modals");
   return (
     <InputPadder>
       <InputVertical
         withLabel={name}
-        title="API Key"
+        title={t("setup.apiKeyField.title")}
         subDescription={
           subDescription
             ? subDescription
             : providerName
-              ? `Paste your API key from ${providerName} to access your models.`
-              : "Paste your API key to access your models."
+              ? t("setup.apiKeyField.providerDescription", {
+                  provider: providerName,
+                })
+              : t("setup.apiKeyField.description")
         }
-        suffix={optional ? "optional" : undefined}
+        suffix={optional ? t("setup.optionalSuffix.label") : undefined}
       >
         <PasswordInputTypeInField name={name} />
       </InputVertical>
@@ -130,28 +135,23 @@ export function APIKeyField({
 // ─── APIBaseField ───────────────────────────────────────────────────────────
 
 /**
- * Sentence appended to an API Base URL `subDescription` when Onyx is detected
- * to be running inside a container — explains why the default uses
- * `host.docker.internal`.
- */
-export const CONTAINERIZED_HOST_NOTE =
-  "With Onyx running in a container, use `host.docker.internal` in place of `localhost` to reach a service on your host.";
-
-/**
  * Builds the API Base URL `subDescription` for self-hosted and custom
  * providers. These point at a service on the admin's own machine, which
  * `localhost` does not reach from inside a container — so when Onyx is
- * containerized, {@link CONTAINERIZED_HOST_NOTE} goes between `description`
- * and `suffix`.
+ * containerized, a note about `host.docker.internal` goes between
+ * `description` and `suffix`.
  */
 export function useApiBaseSubDescription(
   description?: string,
   suffix?: string
 ): RichStr | undefined {
+  const t = useTranslations("admin.languageModels.modals");
   const settings = useSettings();
   const sentences = [
     description,
-    settings.is_containerized ? CONTAINERIZED_HOST_NOTE : undefined,
+    settings.is_containerized
+      ? t("setup.apiBaseField.containerizedNote")
+      : undefined,
     suffix,
   ].filter((sentence) => sentence !== undefined);
   return sentences.length > 0 ? markdown(sentences.join(" ")) : undefined;
@@ -170,13 +170,14 @@ export function APIBaseField({
   placeholder = "https://",
   rightChildren,
 }: APIBaseFieldProps) {
+  const t = useTranslations("admin.languageModels.modals");
   return (
     <InputPadder>
       <InputVertical
         withLabel="api_base"
-        title="API Base URL"
+        title={t("setup.apiBaseField.title")}
         subDescription={subDescription}
-        suffix={optional ? "optional" : undefined}
+        suffix={optional ? t("setup.optionalSuffix.label") : undefined}
       >
         <InputTypeInField
           name="api_base"
@@ -195,6 +196,7 @@ const GROUP_PREFIX = "group:";
 const AGENT_PREFIX = "agent:";
 
 export function ModelAccessField() {
+  const t = useTranslations("admin.languageModels.modals");
   const formikProps = useFormikContext<BaseLLMFormValues>();
   const { agents } = useAgents();
   const { data: userGroups, isLoading: userGroupsIsLoading } = useUserGroups();
@@ -213,14 +215,14 @@ export function ModelAccessField() {
       ? userGroups.map((g) => ({
           value: `${GROUP_PREFIX}${g.id}`,
           label: g.name,
-          description: "Group",
+          description: t("access.groupOption.description"),
         }))
       : [];
 
   const agentOptions = agents.map((a) => ({
     value: `${AGENT_PREFIX}${a.id}`,
     label: a.name,
-    description: "Agent",
+    description: t("access.agentOption.description"),
   }));
 
   // Exclude already-selected items from the dropdown
@@ -280,20 +282,20 @@ export function ModelAccessField() {
       <InputPadder>
         <InputHorizontal
           withLabel="is_public"
-          title="Models Access"
-          description="Who can access this provider."
+          title={t("access.field.title")}
+          description={t("access.field.description")}
         >
           <InputSelect
             value={isPublic ? "public" : "private"}
             onValueChange={handleAccessChange}
           >
-            <InputSelect.Trigger placeholder="Select access level" />
+            <InputSelect.Trigger placeholder={t("access.select.placeholder")} />
             <InputSelect.Content>
               <InputSelect.Item value="public" icon={SvgOrganization}>
-                All Users & Agents
+                {t("access.public.label")}
               </InputSelect.Item>
               <InputSelect.Item value="private" icon={SvgUsers}>
-                Named Groups & Agents
+                {t("access.private.label")}
               </InputSelect.Item>
             </InputSelect.Content>
           </InputSelect>
@@ -301,10 +303,10 @@ export function ModelAccessField() {
       </InputPadder>
 
       {!isPublic && (
-        <Card background="light" border="none" padding={2}>
+        <Card color="background-tint-00" border="none" padding={2}>
           <Section gap={2}>
             <InputComboBox
-              placeholder="Add groups and agents"
+              placeholder={t("access.comboBox.placeholder")}
               value=""
               onChange={() => {}}
               onValueChange={handleSelect}
@@ -313,18 +315,18 @@ export function ModelAccessField() {
               searchIcon
             />
 
-            <Card background="heavy" border="none" padding={2}>
+            <Card color="background-tint-01" border="none" padding={2}>
               <ContentAction
                 icon={SvgUserManage}
-                title="Admin"
-                description={`${adminCount} ${
-                  adminCount === 1 ? "member" : "members"
-                }`}
+                title={t("access.admin.title")}
+                description={t("access.memberCount.label", {
+                  count: adminCount,
+                })}
                 sizePreset="main-ui"
                 variant="section"
                 rightChildren={
                   <Text secondaryBody text03>
-                    Always shared
+                    {t("access.admin.sharedNote")}
                   </Text>
                 }
                 padding={0}
@@ -337,13 +339,17 @@ export function ModelAccessField() {
                   const memberCount = group?.users.length ?? 0;
                   return (
                     <div key={`group-${id}`} className="min-w-0">
-                      <Card background="heavy" border="none" padding={2}>
+                      <Card
+                        color="background-tint-01"
+                        border="none"
+                        padding={2}
+                      >
                         <ContentAction
                           icon={SvgUsers}
-                          title={group?.name ?? `Group ${id}`}
-                          description={`${memberCount} ${
-                            memberCount === 1 ? "member" : "members"
-                          }`}
+                          title={group?.name ?? t("access.group.name", { id })}
+                          description={t("access.memberCount.label", {
+                            count: memberCount,
+                          })}
                           sizePreset="main-ui"
                           variant="section"
                           rightChildren={
@@ -372,15 +378,19 @@ export function ModelAccessField() {
                   const agent = agentMap.get(id);
                   return (
                     <div key={`agent-${id}`} className="min-w-0">
-                      <Card background="heavy" border="none" padding={2}>
+                      <Card
+                        color="background-tint-01"
+                        border="none"
+                        padding={2}
+                      >
                         <ContentAction
                           icon={
                             agent
                               ? () => <AgentAvatar agent={agent} size={20} />
                               : SvgSparkle
                           }
-                          title={agent?.name ?? `Agent ${id}`}
-                          description="Agent"
+                          title={agent?.name ?? t("access.agent.name", { id })}
+                          description={t("access.agentOption.description")}
                           sizePreset="main-ui"
                           variant="section"
                           rightChildren={
@@ -403,8 +413,8 @@ export function ModelAccessField() {
               <div className="w-full p-2">
                 <Content
                   icon={SvgOnyxOctagon}
-                  title="No agents added"
-                  description="This provider will not be used by any agents."
+                  title={t("access.noAgents.title")}
+                  description={t("access.noAgents.description")}
                   variant="section"
                   sizePreset="main-ui"
                 />
@@ -427,6 +437,7 @@ interface RefetchButtonProps {
   onRefetch: (signal: AbortSignal) => Promise<void> | void;
 }
 function RefetchButton({ onRefetch }: RefetchButtonProps) {
+  const t = useTranslations("admin.languageModels.modals");
   const abortRef = useRef<AbortController | null>(null);
   const [isFetching, setIsFetching] = useState(false);
 
@@ -448,7 +459,7 @@ function RefetchButton({ onRefetch }: RefetchButtonProps) {
         } catch (err) {
           if (err instanceof DOMException && err.name === "AbortError") return;
           toast.error(
-            err instanceof Error ? err.message : "Failed to fetch models"
+            err instanceof Error ? err.message : t("models.refetch.errorToast")
           );
         } finally {
           if (!controller.signal.aborted) {
@@ -518,10 +529,13 @@ function buildModelDescription(model: ModelConfiguration): string | undefined {
 }
 
 /** Eye marker for vision models, shown on the right of the picker row. */
-function modelRightChildren(model: ModelConfiguration): React.ReactNode {
+function modelRightChildren(
+  model: ModelConfiguration,
+  visionTitle: string
+): React.ReactNode {
   if (!hasModelMetadata(model) || !model.supports_image_input) return undefined;
   return (
-    <Text secondaryBody text03 title="Vision">
+    <Text secondaryBody text03 title={visionTitle}>
       👁
     </Text>
   );
@@ -558,6 +572,7 @@ function ModelRow({
   onSettingsChange,
   onSetDefaultModel,
 }: ModelRowProps) {
+  const t = useTranslations("admin.languageModels.modals");
   const editHandle = useRef<ContentMdEditHandle>(null);
   // Keeps the hover-revealed actions visible while the settings popover,
   // which is portaled outside the row, is open.
@@ -626,7 +641,7 @@ function ModelRow({
               variant="section"
               sizePreset="main-ui"
               center
-              icon={() => <Checkbox checked={isSelected} />}
+              icon={() => <InputCheckbox checked={isSelected} />}
               title={displayName}
               description={buildModelDescription(model)}
               rightChildren={
@@ -636,7 +651,10 @@ function ModelRow({
                   height="auto"
                   gap={1}
                 >
-                  {modelRightChildren(model)}
+                  {modelRightChildren(
+                    model,
+                    t("models.row.visionMarker.title")
+                  )}
                   <Hoverable.Item group="model-row" variant="appear-on-hover">
                     <OpalSection
                       flexDirection="row"
@@ -648,7 +666,7 @@ function ModelRow({
                         icon={SvgEdit}
                         prominence="internal"
                         size="sm"
-                        tooltip="Rename"
+                        tooltip={t("models.row.renameButton.tooltip")}
                         onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
                           editHandle.current?.startEditing();
@@ -668,7 +686,7 @@ function ModelRow({
                             onSetDefaultModel();
                           }}
                         >
-                          Set as Default
+                          {t("models.row.setDefaultButton.label")}
                         </Button>
                       )}
                     </OpalSection>
@@ -679,7 +697,7 @@ function ModelRow({
                       nowrap
                       className="px-1.5 py-1 text-action-selection-05"
                     >
-                      Default Model
+                      {t("models.row.defaultLabel")}
                     </Text>
                   )}
                 </OpalSection>
@@ -710,6 +728,7 @@ export function ModelSelectionField({
   onAddModel,
   emptyMessage,
 }: ModelSelectionFieldProps) {
+  const t = useTranslations("admin.languageModels.modals");
   const formikProps = useFormikContext<BaseLLMFormValues>();
   const { mutate } = useSWRConfig();
   const { defaultText } = useAdminLLMProviders();
@@ -802,11 +821,11 @@ export function ModelSelectionField({
   const visibleModels = models.filter((m) => m.is_visible);
 
   return (
-    <Card background="light" border="none" padding={2}>
+    <Card color="background-tint-00" border="none" padding={2}>
       <Section gap={2}>
         <InputHorizontal
-          title="Models"
-          description="Select models to make available for this provider."
+          title={t("models.field.title")}
+          description={t("models.field.description")}
           center
         >
           <Section flexDirection="row" gap={0}>
@@ -816,7 +835,9 @@ export function ModelSelectionField({
               size="md"
               onClick={handleToggleSelectAll}
             >
-              {allSelected ? "Deselect All" : "Select All"}
+              {allSelected
+                ? t("models.deselectAllButton.label")
+                : t("models.selectAllButton.label")}
             </Button>
             {onRefetch && <RefetchButton onRefetch={onRefetch} />}
           </Section>
@@ -824,7 +845,7 @@ export function ModelSelectionField({
 
         {models.length === 0 ? (
           <EmptyMessageCard
-            title={emptyMessage ?? "No models available."}
+            title={emptyMessage ?? t("models.empty.title")}
             padding={2}
           />
         ) : (
@@ -880,7 +901,11 @@ export function ModelSelectionField({
                         <Content
                           sizePreset="secondary"
                           variant="body"
-                          title={isExpanded ? "Fold Models" : "More Models"}
+                          title={
+                            isExpanded
+                              ? t("models.foldButton.label")
+                              : t("models.moreButton.label")
+                          }
                           icon={() => (
                             <SvgChevronDown
                               className={cn(
@@ -904,7 +929,7 @@ export function ModelSelectionField({
           <Section flexDirection="row" gap={2}>
             <div className="flex-1">
               <InputTypeIn
-                placeholder="Enter model name"
+                placeholder={t("models.addModelInput.placeholder")}
                 value={newModelName}
                 onChange={(e) => setNewModelName(e.target.value)}
                 onKeyDown={(e) => {
@@ -935,18 +960,18 @@ export function ModelSelectionField({
                 }
               }}
             >
-              Add Model
+              {t("models.addModelButton.label")}
             </Button>
           </Section>
         )}
 
         {shouldShowAutoUpdateToggle && (
           <InputHorizontal
-            title="Auto Update"
-            description="Update the available models when new models are released."
+            title={t("models.autoUpdate.title")}
+            description={t("models.autoUpdate.description")}
             withLabel
           >
-            <Switch
+            <InputSwitch
               checked={isAutoMode}
               onCheckedChange={handleToggleAutoMode}
             />
@@ -1019,6 +1044,7 @@ function ModalWrapperInner({
   children,
   description: descriptionOverride,
 }: ModalWrapperInnerProps) {
+  const t = useTranslations("admin.languageModels.modals");
   const { isValid, dirty, isSubmitting, status, setFieldValue, values } =
     useFormikContext<BaseLLMFormValues>();
 
@@ -1041,9 +1067,9 @@ function ModalWrapperInner({
   const disabledTooltip = busy
     ? undefined
     : !isValid
-      ? "Please fill in all required fields."
+      ? t("setup.submitButton.invalidTooltip")
       : !dirty
-        ? "No changes to save."
+        ? t("setup.submitButton.pristineTooltip")
         : undefined;
 
   const {
@@ -1053,11 +1079,18 @@ function ModalWrapperInner({
   } = getProvider(providerName);
 
   const title = llmProvider
-    ? markdown(`Configure *${llmProvider.name ?? providerProductName}*`)
-    : `Set up ${providerProductName}`;
+    ? markdown(
+        t("setup.title.configure", {
+          provider: llmProvider.name ?? providerProductName,
+        })
+      )
+    : t("setup.title.create", { product: providerProductName });
   const description =
     descriptionOverride ??
-    `Connect to ${providerDisplayName} and set up your ${providerProductName} models.`;
+    t("setup.description", {
+      company: providerDisplayName,
+      product: providerProductName,
+    });
 
   return (
     <Modal open onOpenChange={onClose}>
@@ -1076,7 +1109,7 @@ function ModalWrapperInner({
           </Modal.Body>
           <Modal.Footer>
             <Button prominence="secondary" onClick={onClose} type="button">
-              Cancel
+              {t("setup.cancelButton.label")}
             </Button>
             <Button
               disabled={!isValid || !dirty || busy}
@@ -1084,7 +1117,9 @@ function ModalWrapperInner({
               icon={busy ? SvgSimpleLoader : undefined}
               tooltip={disabledTooltip}
             >
-              {llmProvider ? "Update" : "Connect"}
+              {llmProvider
+                ? t("setup.updateButton.label")
+                : t("setup.connectButton.label")}
             </Button>
           </Modal.Footer>
         </Form>

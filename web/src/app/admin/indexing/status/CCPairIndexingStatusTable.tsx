@@ -1,4 +1,5 @@
 import React from "react";
+import { useLocale, useTranslations } from "next-intl";
 import {
   Table,
   TableRow,
@@ -17,7 +18,6 @@ import {
   ConnectorIndexingStatusLite,
   FederatedConnectorStatus,
 } from "@/lib/types";
-import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import Truncated from "@/refresh-components/texts/Truncated";
 import {
@@ -46,13 +46,13 @@ import { can } from "@/lib/permissions/resource-actions";
 // row to not navigate as expected.
 function navigateWithModifier(
   e: React.MouseEvent,
-  url: string,
+  url: `/admin/connector/${number}` | `/admin/federated/${number}`,
   router: ReturnType<typeof useRouter>
 ) {
   if (e.metaKey || e.ctrlKey) {
     window.open(url, "_blank");
   } else {
-    router.push(url as Route);
+    router.push(url);
   }
 }
 
@@ -76,6 +76,8 @@ function SummaryRow({
   isOpen: boolean;
   onToggle: () => void;
 }) {
+  const t = useTranslations("admin.indexing");
+  const locale = useLocale();
   const businessTier = useTierAtLeast(Tier.BUSINESS);
 
   return (
@@ -99,37 +101,41 @@ function SummaryRow({
 
       <TableCell>
         <div className="text-sm text-neutral-500 dark:text-neutral-300">
-          Total Connectors
+          {t("status.summary.totalConnectors.label")}
         </div>
-        <div className="text-xl font-semibold">{summary.total_connectors}</div>
+        <div className="text-xl font-semibold">
+          {summary.total_connectors.toLocaleString(locale)}
+        </div>
       </TableCell>
 
       <TableCell>
         <div className="text-sm text-neutral-500 dark:text-neutral-300">
-          Active Connectors
+          {t("status.summary.activeConnectors.label")}
         </div>
         <p className="flex text-xl mx-auto font-semibold items-center text-lg mt-1">
-          {summary.active_connectors}/{summary.total_connectors}
+          {summary.active_connectors.toLocaleString(locale)}/
+          {summary.total_connectors.toLocaleString(locale)}
         </p>
       </TableCell>
 
       {businessTier && (
         <TableCell>
           <div className="text-sm text-neutral-500 dark:text-neutral-300">
-            Public Connectors
+            {t("status.summary.publicConnectors.label")}
           </div>
           <p className="flex text-xl mx-auto font-semibold items-center text-lg mt-1">
-            {summary.public_connectors}/{summary.total_connectors}
+            {summary.public_connectors.toLocaleString(locale)}/
+            {summary.total_connectors.toLocaleString(locale)}
           </p>
         </TableCell>
       )}
 
       <TableCell>
         <div className="text-sm text-neutral-500 dark:text-neutral-300">
-          Total Docs Indexed
+          {t("status.summary.totalDocsIndexed.label")}
         </div>
         <div className="text-xl font-semibold">
-          {summary.total_docs_indexed.toLocaleString()}
+          {summary.total_docs_indexed.toLocaleString(locale)}
         </div>
       </TableCell>
 
@@ -147,10 +153,12 @@ function ConnectorRow({
   invisible?: boolean;
   isEditable: boolean;
 }) {
+  const t = useTranslations("admin.indexing");
+  const locale = useLocale();
   const router = useRouter();
   const businessTier = useTierAtLeast(Tier.BUSINESS);
 
-  const connectorUrl = `/admin/connector/${ccPairsIndexingStatus.cc_pair_id}`;
+  const connectorUrl: `/admin/connector/${number}` = `/admin/connector/${ccPairsIndexingStatus.cc_pair_id}`;
 
   const handleRowClick = (e: React.MouseEvent) => {
     navigateWithModifier(e, connectorUrl, router);
@@ -171,7 +179,7 @@ function ConnectorRow({
         <Truncated>{ccPairsIndexingStatus.name}</Truncated>
       </TableCell>
       <TableCell>
-        {timeAgo(ccPairsIndexingStatus?.last_success) || "-"}
+        {timeAgo(ccPairsIndexingStatus?.last_success, locale) || "-"}
       </TableCell>
       <TableCell>
         <CCPairStatus
@@ -190,27 +198,31 @@ function ConnectorRow({
         <TableCell>
           {ccPairsIndexingStatus.access_type === "public" ? (
             <Badge variant={isEditable ? "success" : "default"} icon={FiUnlock}>
-              Organization Public
+              {t("status.access.organizationPublic.label")}
             </Badge>
           ) : ccPairsIndexingStatus.access_type === "sync" ? (
             <Badge
               variant={isEditable ? "auto-sync" : "default"}
               icon={FiRefreshCw}
             >
-              Inherited from{" "}
-              {getSourceDisplayName(ccPairsIndexingStatus.source)}
+              {t("status.access.inherited.label", {
+                source:
+                  getSourceDisplayName(ccPairsIndexingStatus.source) ?? "",
+              })}
             </Badge>
           ) : (
             <Badge variant={isEditable ? "private" : "default"} icon={FiLock}>
-              Private
+              {t("status.access.private.label")}
             </Badge>
           )}
         </TableCell>
       )}
-      <TableCell>{ccPairsIndexingStatus.docs_indexed}</TableCell>
+      <TableCell>
+        {ccPairsIndexingStatus.docs_indexed.toLocaleString(locale)}
+      </TableCell>
       <TableCell>
         {isEditable && (
-          <Tooltip tooltip="Manage Connector">
+          <Tooltip tooltip={t("status.manageConnector.tooltip")}>
             <Button icon={SvgSettings} prominence="tertiary" />
           </Tooltip>
         )}
@@ -226,10 +238,11 @@ function FederatedConnectorRow({
   federatedConnector: FederatedConnectorStatus;
   invisible?: boolean;
 }) {
+  const t = useTranslations("admin.indexing");
   const router = useRouter();
   const businessTier = useTierAtLeast(Tier.BUSINESS);
 
-  const federatedUrl = `/admin/federated/${federatedConnector.id}`;
+  const federatedUrl: `/admin/federated/${number}` = `/admin/federated/${federatedConnector.id}`;
 
   const handleRowClick = (e: React.MouseEvent) => {
     navigateWithModifier(e, federatedUrl, router);
@@ -249,18 +262,18 @@ function FederatedConnectorRow({
       <TableCell className="">
         <Truncated>{federatedConnector.name}</Truncated>
       </TableCell>
-      <TableCell>N/A</TableCell>
+      <TableCell>{t("status.federated.notApplicable.label")}</TableCell>
       <TableCell>
-        <Badge variant="success">Indexed</Badge>
+        <Badge variant="success">{t("status.federated.indexed.label")}</Badge>
       </TableCell>
       {businessTier && (
         <TableCell>
           <Badge variant="secondary" icon={FiRefreshCw}>
-            Federated Access
+            {t("status.federated.access.label")}
           </Badge>
         </TableCell>
       )}
-      <TableCell>N/A</TableCell>
+      <TableCell>{t("status.federated.notApplicable.label")}</TableCell>
       <TableCell>
         <Button
           icon={SvgSettings}
@@ -269,7 +282,7 @@ function FederatedConnectorRow({
             e.stopPropagation();
             navigateWithModifier(e, federatedUrl, router);
           }}
-          tooltip="Manage Federated Connector"
+          tooltip={t("status.manageFederatedConnector.tooltip")}
         />
       </TableCell>
     </TableRow>
@@ -289,6 +302,7 @@ export function CCPairIndexingStatusTable({
   onPageChange: (source: ValidSources, newPage: number) => void;
   sourceLoadingStates?: Record<ValidSources, boolean>;
 }) {
+  const t = useTranslations("admin.indexing");
   const businessTier = useTierAtLeast(Tier.BUSINESS);
 
   return (
@@ -340,13 +354,19 @@ export function CCPairIndexingStatusTable({
                 {!sourceLoadingStates[ccPairStatus.source] && (
                   <>
                     <TableRow className="border border-border dark:border-neutral-700">
-                      <TableHead>Name</TableHead>
-                      <TableHead>Last Indexed</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>{t("status.table.name.header")}</TableHead>
+                      <TableHead>
+                        {t("status.table.lastIndexed.header")}
+                      </TableHead>
+                      <TableHead>{t("status.table.status.header")}</TableHead>
                       {businessTier && (
-                        <TableHead>Permissions / Access</TableHead>
+                        <TableHead>
+                          {t("status.table.permissions.header")}
+                        </TableHead>
                       )}
-                      <TableHead>Total Docs</TableHead>
+                      <TableHead>
+                        {t("status.table.totalDocs.header")}
+                      </TableHead>
                       <TableHead></TableHead>
                     </TableRow>
                     {ccPairStatus.indexing_statuses.map((indexingStatus) => {
@@ -390,8 +410,8 @@ export function CCPairIndexingStatusTable({
                             key={`dummy-${ccPairStatus.source}-${index}`}
                             className={
                               isLastDummyRow
-                                ? "border-l border-r border-b border-border dark:border-neutral-700"
-                                : "border-l border-r border-t-0 border-b-0 border-border dark:border-neutral-700"
+                                ? "border-s border-e border-b border-border dark:border-neutral-700"
+                                : "border-s border-e border-t-0 border-b-0 border-border dark:border-neutral-700"
                             }
                             style={
                               isLastDummyRow
@@ -410,10 +430,10 @@ export function CCPairIndexingStatusTable({
                                     ? NUMBER_OF_COLUMNS
                                     : NUMBER_OF_COLUMNS - 1
                                 }
-                                className="h-[56px] text-center text-sm text-gray-400 dark:text-gray-500 border-b border-r border-l border-border dark:border-neutral-700"
+                                className="h-[56px] text-center text-sm text-gray-400 dark:text-gray-500 border-b border-e border-s border-border dark:border-neutral-700"
                               >
                                 <span className="italic">
-                                  All caught up! No more connectors to show
+                                  {t("status.table.allCaughtUp.label")}
                                 </span>
                               </TableCell>
                             ) : (
@@ -432,7 +452,7 @@ export function CCPairIndexingStatusTable({
                   </>
                 )}
                 {ccPairStatus.total_pages > 1 && (
-                  <TableRow className="border-l border-r border-b border-border dark:border-neutral-700">
+                  <TableRow className="border-s border-e border-b border-border dark:border-neutral-700">
                     <TableCell
                       colSpan={
                         businessTier ? NUMBER_OF_COLUMNS : NUMBER_OF_COLUMNS - 1

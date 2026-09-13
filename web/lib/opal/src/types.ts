@@ -1,4 +1,4 @@
-import type { SVGProps } from "react";
+import type { ReactNode, SVGProps } from "react";
 
 // ---------------------------------------------------------------------------
 // Size Variants
@@ -134,13 +134,18 @@ export type OrientationVariants = "horizontal" | "vertical";
 export type BorderVariants = "none" | "dashed" | "solid";
 
 /**
- * Background fill variants shared across card-like surfaces.
- *
- * - `"none"`: transparent background.
- * - `"light"`: lightly tinted background.
- * - `"heavy"`: heavily tinted background.
+ * Card surface colors, named for the token they paint — no intensity
+ * adjectives. `"transparent"` is the sentinel for no fill.
  */
-export type BackgroundVariants = "none" | "light" | "heavy";
+export type CardColor =
+  | "transparent"
+  | "background-tint-00"
+  | "background-tint-01"
+  | "status-info-00"
+  | "status-success-00"
+  | "status-warning-00"
+  | "status-error-00"
+  | "theme-amber-01";
 
 // ---------------------------------------------------------------------------
 // Color Types
@@ -236,6 +241,25 @@ export type WithoutStyles<T> = Omit<T, "className" | "style">;
 export interface RichStr {
   readonly __brand: "RichStr";
   readonly raw: string;
+}
+
+/**
+ * A branded wrapper marking React nodes as deliberate `Text` children.
+ *
+ * Created via the `richNodes()` function. `Text` renders the inner nodes
+ * verbatim; the brand exists so arbitrary JSX is still rejected at the type
+ * level and the opt-in stays visible at the call site, like `markdown()`.
+ *
+ * The main producer is i18n rich-text output (next-intl `t.rich(...)`), where
+ * translated sentences embed inline components mid-sentence.
+ *
+ * Unlike `RichStr`, a `RichNodes` value cannot be reduced to a plain string,
+ * so it is only accepted by `Text` children — never by `string | RichStr`
+ * props, which must stay derivable for tooltips and aria labels.
+ */
+export interface RichNodes {
+  readonly __brand: "RichNodes";
+  readonly nodes: ReactNode;
 }
 
 // ---------------------------------------------------------------------------

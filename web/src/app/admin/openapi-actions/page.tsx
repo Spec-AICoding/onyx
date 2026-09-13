@@ -1,5 +1,7 @@
 "use client";
 
+import { useAdminRouteTitle } from "@/lib/adminNavLabels";
+import { useTranslations } from "next-intl";
 import { SettingsLayouts } from "@opal/layouts";
 import OpenApiPageContent from "@/sections/actions/OpenApiPageContent";
 import { ADMIN_ROUTES } from "@/lib/admin-routes";
@@ -7,12 +9,15 @@ import { ADMIN_ROUTES } from "@/lib/admin-routes";
 const route = ADMIN_ROUTES.OPENAPI_ACTIONS;
 
 export default function Main() {
+  const t = useTranslations("admin.openapiActions");
+  const adminRouteTitle = useAdminRouteTitle();
+
   return (
     <SettingsLayouts.Root>
       <SettingsLayouts.Header
         icon={route.icon}
-        title={route.title}
-        description="Connect OpenAPI servers to add custom actions and tools for your agents."
+        title={adminRouteTitle(route)}
+        description={t("header.description")}
         divider
       />
       <SettingsLayouts.Body>

@@ -1,8 +1,5 @@
-import {
-  Filters,
-  DocumentInfoPacket,
-  StreamStopInfo,
-} from "@/lib/search/interfaces";
+import { DocumentInfoPacket, StreamStopInfo } from "@/lib/search/interfaces";
+import type { SearchFiltersRequest } from "@/lib/searchFilters/types";
 import { handleSSEStream } from "@/lib/search/streamingUtils";
 import { ReasoningEffortOverride } from "@/lib/languageModels/types";
 import { FeedbackType } from "@/app/app/interfaces";
@@ -25,6 +22,7 @@ import {
 import { ReadonlyURLSearchParams } from "next/navigation";
 import { SEARCH_PARAM_NAMES } from "./searchParams";
 import { Packet } from "./streamingModels";
+import type { ErrorResponseBody } from "@/lib/fetcher";
 
 export async function updateLlmOverrideForChatSession(
   chatSessionId: string,
@@ -77,6 +75,12 @@ export async function updateReasoningEffortForChatSession(
   return response;
 }
 
+// Mirrors backend `CreateChatSessionID`. Older servers omit `incognito`.
+interface CreateChatSessionResponse {
+  chat_session_id: string;
+  incognito?: boolean;
+}
+
 export async function createChatSession(
   personaId: number,
   description: string | null,
@@ -106,7 +110,8 @@ export async function createChatSession(
     );
     throw Error("Failed to create chat session");
   }
-  const chatSessionResponseJson = await createChatSessionResponse.json();
+  const chatSessionResponseJson: CreateChatSessionResponse =
+    await createChatSessionResponse.json();
   // A server that omits the echo (e.g. an old pod mid-deploy) did not pin the
   // mode, so proceeding would silently persist a believed-incognito chat.
   if (incognito && chatSessionResponseJson.incognito !== true) {
@@ -161,7 +166,7 @@ export interface SendMessageParams {
   fileDescriptors?: FileDescriptor[];
   parentMessageId: number | null;
   chatSessionId: string;
-  filters: Filters | null;
+  filters: SearchFiltersRequest | null;
   signal?: AbortSignal;
   deepResearch?: boolean;
   enabledToolIds?: number[];
@@ -237,7 +242,9 @@ export async function* sendMessage({
   });
 
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
+    const data: ErrorResponseBody & RateLimitDetails = await response
+      .json()
+      .catch(() => ({}));
 
     // Surface the usage rate-limit (429) as a structured StreamingError packet
     // so the chat UI can render the dedicated usage-limit banner. Throwing a
@@ -296,7 +303,7 @@ export async function* resumeStream(
   );
 
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
+    const data: ErrorResponseBody = await response.json().catch(() => ({}));
     throw new Error(data.detail ?? `HTTP error! status: ${response.status}`);
   }
 
@@ -429,7 +436,7 @@ export async function getAvailableContextTokens(
   if (!response.ok) {
     return null;
   }
-  const data = (await response.json()) as { available_tokens: number };
+  const data: { available_tokens: number } = await response.json();
   return data?.available_tokens ?? null;
 }
 
